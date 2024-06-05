@@ -115,13 +115,6 @@ def detect_bots(features):
 
 # Main Function to Run the Analysis
 def run_analysis():
-    st.title('Uniswap Subreddit Analyzer')
-
-    st.subheader('Fetching data...')
-    data = fetch_data('uniswap', limit=1000)
-    data_past_two_weeks = fetch_data_past_two_weeks('uniswap')
-    st.write('Data fetched successfully!')
-
     # Export data to CSV
     data.to_csv('reddit_data.csv', index=False)
 
