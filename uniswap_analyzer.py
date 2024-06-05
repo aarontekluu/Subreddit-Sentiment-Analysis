@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
+from wordcloud import WordCloud
 from sklearn.ensemble import IsolationForest
 import numpy as np
 import plotly.express as px
@@ -50,14 +51,15 @@ def fetch_data(subreddit_name, limit=1000):
     df['Date'] = pd.to_datetime(df['CreatedUTC'], unit='s')
     return df
 
-# Fetch Data for a Specific Time Period
-def fetch_data_period(subreddit_name, time_filter='week', limit=100):
+# Fetch Data for the Past Two Weeks
+def fetch_data_past_two_weeks(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
-    for post in subreddit.top(time_filter=time_filter, limit=limit):
-        author_name = post.author.name if post.author else 'Unknown'
-        post_url = f"https://www.reddit.com{post.permalink}"
-        posts.append([post.title, post.selftext, post.score, post.num_comments, author_name, post.created_utc, post_url])
+    for post in subreddit.new(limit=None):
+        if (pd.Timestamp.now() - pd.to_datetime(post.created_utc, unit='s')).days <= 14:
+            author_name = post.author.name if post.author else 'Unknown'
+            post_url = f"https://www.reddit.com{post.permalink}"
+            posts.append([post.title, post.selftext, post.score, post.num_comments, author_name, post.created_utc, post_url])
     df = pd.DataFrame(posts, columns=['Title', 'Text', 'Score', 'NumComments', 'Author', 'CreatedUTC', 'URL'])
     df['Date'] = pd.to_datetime(df['CreatedUTC'], unit='s')
     return df
@@ -90,68 +92,60 @@ def detect_bots(features):
 # Main Function to Run the Analysis
 def run_analysis():
     st.title('Uniswap Subreddit Analyzer')
-    
-    # Sidebar
-    st.sidebar.title('Data Fetching')
-    data_limit = st.sidebar.slider('Select number of posts to fetch', 100, 2000, 1000)
-    
+
     st.subheader('Fetching data...')
-    data = fetch_data('uniswap', limit=data_limit)
-    data_week = fetch_data_period('uniswap', time_filter='week')
-    data_month = fetch_data_period('uniswap', time_filter='month')
+    data = fetch_data('uniswap', limit=1000)
+    data_past_two_weeks = fetch_data_past_two_weeks('uniswap')
     st.write('Data fetched successfully!')
 
     # Export data to CSV
     data.to_csv('reddit_data.csv', index=False)
-    print("Data exported to reddit_data.csv")
 
     # Convert CreatedUTC to datetime
     data['Date'] = pd.to_datetime(data['CreatedUTC'], unit='s')
-    data['Hour'] = data['Date'].dt.hour
-    data['Month'] = data['Date'].dt.to_period('M')
+    data_past_two_weeks['Date'] = pd.to_datetime(data_past_two_weeks['CreatedUTC'], unit='s')
 
     # Extract Features and Detect Bots
     features = extract_features(data)
     features = detect_bots(features)
     potential_bots = features[features['anomaly'] == -1]
 
-    # Post Activity: Number of Posts Per Day in the Past Two Weeks
-    st.subheader('Post Activity: Number of Posts Per Day in the Past Two Weeks')
-    st.write('**Based on the number of posts made each day in the past two weeks.**')
-    past_two_weeks = data[data['Date'] > (pd.Timestamp.now() - pd.Timedelta(weeks=2))]
-    posts_per_day = past_two_weeks.groupby(past_two_weeks['Date'].dt.date).size()
+    # Post Activity (Number of Posts per Day in the Past Two Weeks)
+    st.subheader('Post Activity (Number of Posts per Day in the Past Two Weeks)')
+    st.write('**Based on the number of posts created per day in the Uniswap subreddit over the past two weeks.**')
+    posts_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date).size()
     plt.figure(figsize=(10, 4))
-    posts_per_day.plot(kind='line')
-    plt.title('Number of Posts Per Day in the Past Two Weeks')
+    posts_per_day.plot(kind='bar')
+    plt.title('Post Activity (Number of Posts per Day in the Past Two Weeks)')
     plt.xlabel('Date')
     plt.ylabel('Number of Posts')
     st.pyplot(plt)
 
-    # Post Activity: Number of Comments Per Day in the Past Two Weeks
-    st.subheader('Post Activity: Number of Comments Per Day in the Past Two Weeks')
-    st.write('**Based on the total number of comments made on posts each day in the past two weeks.**')
-    comments_per_day = past_two_weeks.groupby(past_two_weeks['Date'].dt.date)['NumComments'].sum()
+    # Comment Activity per Day in the Past Two Weeks
+    st.subheader('Comment Activity per Day in the Past Two Weeks')
+    st.write('**Based on the number of comments on posts created per day in the Uniswap subreddit over the past two weeks.**')
+    comments_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date)['NumComments'].sum()
     plt.figure(figsize=(10, 4))
-    comments_per_day.plot(kind='line')
-    plt.title('Number of Comments Per Day in the Past Two Weeks')
+    comments_per_day.plot(kind='bar')
+    plt.title('Comment Activity per Day in the Past Two Weeks')
     plt.xlabel('Date')
     plt.ylabel('Number of Comments')
     st.pyplot(plt)
 
-    # Post Activity: Average Score of Posts Per Day in the Past Two Weeks
-    st.subheader('Post Activity: Average Score of Posts Per Day in the Past Two Weeks')
-    st.write('**Based on the average score of posts each day in the past two weeks.**')
-    avg_score_per_day = past_two_weeks.groupby(past_two_weeks['Date'].dt.date)['Score'].mean()
+    # Top Active Users by Post Count in the Past Two Weeks
+    st.subheader('Top Active Users by Post Count in the Past Two Weeks')
+    st.write('**Based on the number of posts created by each user in the Uniswap subreddit over the past two weeks.**')
+    top_users = data_past_two_weeks['Author'].value_counts().head(10)
     plt.figure(figsize=(10, 4))
-    avg_score_per_day.plot(kind='line')
-    plt.title('Average Score of Posts Per Day in the Past Two Weeks')
-    plt.xlabel('Date')
-    plt.ylabel('Average Score')
+    sns.barplot(x=top_users.values, y=top_users.index, palette='viridis')
+    plt.title('Top Active Users by Post Count in the Past Two Weeks')
+    plt.xlabel('Number of Posts')
+    plt.ylabel('User')
     st.pyplot(plt)
 
     # Potential Bot Activity
     st.subheader('Potential Bot Activity')
-    st.write('**Determined by high post frequency, regular post intervals, and repetitive content.**')
+    st.write('**Determined by high post frequency, regular post intervals, and repetitive content. Based on analysis of posting behavior and content similarity.**')
     total_bots = potential_bots.shape[0]
     total_sample_size = features.shape[0]
     st.write(f'Total Number of Potential Bots: {total_bots} out of {total_sample_size} posts analyzed.')
