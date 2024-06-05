@@ -1,0 +1,8 @@
+praw
+pandas
+matplotlib
+seaborn
+wordcloud
+streamlit
+scikit-learn
+plotly
