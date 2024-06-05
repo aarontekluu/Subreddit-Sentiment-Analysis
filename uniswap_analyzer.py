@@ -1,3 +1,4 @@
+import os
 import requests
 import praw
 import pandas as pd
@@ -7,11 +8,19 @@ from wordcloud import WordCloud
 import streamlit as st
 from sklearn.ensemble import IsolationForest
 import numpy as np
+import plotly.express as px
 
-# Step 1: Authenticate and get access token
-auth = requests.auth.HTTPBasicAuth('ANte6ker2jgKNVYjACDZ8A', 'rIhtul0uIeY6WU7kDtukvxhYPlc2bA')
-data = {'grant_type': 'password', 'username': 'Certain-Dot743', 'password': 'FATTYpatty12345'}
-headers = {'User-Agent': 'uniswap-analysis-script/0.1'}
+# Fetch environment variables
+REDDIT_CLIENT_ID = os.getenv('REDDIT_CLIENT_ID')
+REDDIT_CLIENT_SECRET = os.getenv('REDDIT_CLIENT_SECRET')
+REDDIT_USERNAME = os.getenv('REDDIT_USERNAME')
+REDDIT_PASSWORD = os.getenv('REDDIT_PASSWORD')
+REDDIT_USER_AGENT = os.getenv('REDDIT_USER_AGENT')
+
+# Authenticate and get access token
+auth = requests.auth.HTTPBasicAuth(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET)
+data = {'grant_type': 'password', 'username': REDDIT_USERNAME, 'password': REDDIT_PASSWORD}
+headers = {'User-Agent': REDDIT_USER_AGENT}
 
 res = requests.post('https://www.reddit.com/api/v1/access_token', auth=auth, data=data, headers=headers)
 if res.status_code == 200:
@@ -21,13 +30,13 @@ else:
     print("Failed to get access token:", res.json())
     exit()
 
-# Step 2: Use the access token with PRAW
+# Use the access token with PRAW
 reddit = praw.Reddit(
-    client_id='ANte6ker2jgKNVYjACDZ8A',
-    client_secret='rIhtul0uIeY6WU7kDtukvxhYPlc2bA',
-    user_agent='uniswap-analysis-script/0.1',
-    username='Certain-Dot743',
-    password='FATTYpatty12345'
+    client_id=REDDIT_CLIENT_ID,
+    client_secret=REDDIT_CLIENT_SECRET,
+    user_agent=REDDIT_USER_AGENT,
+    username=REDDIT_USERNAME,
+    password=REDDIT_PASSWORD
 )
 
 # Fetch Data from Uniswap Subreddit
