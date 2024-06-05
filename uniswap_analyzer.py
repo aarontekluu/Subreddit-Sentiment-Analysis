@@ -74,17 +74,21 @@ def extract_features(data):
 
 # Detect Potential Bot Activity
 def detect_bots(features):
-    iso_forest = IsolationForest(contamination=0.1)
+    iso_forest = IsolationForest(contamination=0.1, random_state=42)
     iso_forest.fit(features[['post_frequency', 'avg_post_interval', 'content_similarity', 'account_age']])
     features['anomaly'] = iso_forest.predict(features[['post_frequency', 'avg_post_interval', 'content_similarity', 'account_age']])
     
     # Classify bot likelihood
+    high_freq_threshold = features['post_frequency'].quantile(0.75)
+    low_freq_threshold = features['post_frequency'].quantile(0.25)
+    
     conditions = [
-        (features['anomaly'] == -1) & (features['post_frequency'] > features['post_frequency'].quantile(0.75)),
-        (features['anomaly'] == -1) & (features['post_frequency'] <= features['post_frequency'].quantile(0.75)),
-        (features['anomaly'] == 1)
+        (features['anomaly'] == -1) & (features['post_frequency'] > high_freq_threshold), # High post frequency
+        (features['anomaly'] == -1) & (features['post_frequency'] <= high_freq_threshold) & (features['post_frequency'] > low_freq_threshold), # Medium post frequency
+        (features['anomaly'] == -1) & (features['post_frequency'] <= low_freq_threshold), # Low post frequency
+        (features['anomaly'] == 1) # Not an anomaly
     ]
-    choices = ['Highly Likely', 'Maybe', 'Unlikely']
+    choices = ['Highly Likely', 'Maybe', 'Unlikely', 'Unlikely']
     features['bot_likelihood'] = np.select(conditions, choices, default='Unlikely')
     
     return features
