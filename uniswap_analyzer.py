@@ -27,6 +27,23 @@ st.markdown("""
     .stMarkdown p {
         font-family: 'Helvetica Neue', sans-serif;
     }
+    .reddit-post {
+        border: 1px solid #e1e4e8;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 10px;
+        background: #fff;
+    }
+    .reddit-post-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #0079d3;
+        text-decoration: none;
+    }
+    .reddit-post-meta {
+        font-size: 12px;
+        color: #878a8c;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -84,6 +101,19 @@ def fetch_data_past_two_weeks(subreddit_name):
     df['Date'] = pd.to_datetime(df['CreatedUTC'], unit='s')
     return df
 
+# Fetch Top 3 Most Commented Posts of the Past Week
+def fetch_top_commented_posts(subreddit_name):
+    subreddit = reddit.subreddit(subreddit_name)
+    posts = []
+    for post in subreddit.top(time_filter='week', limit=100):
+        author_name = post.author.name if post.author else 'Unknown'
+        post_url = f"https://www.reddit.com{post.permalink}"
+        posts.append([post.title, post.selftext, post.score, post.num_comments, author_name, post.created_utc, post_url])
+    df = pd.DataFrame(posts, columns=['Title', 'Text', 'Score', 'NumComments', 'Author', 'CreatedUTC', 'URL'])
+    df['Date'] = pd.to_datetime(df['CreatedUTC'], unit='s')
+    top_commented = df.nlargest(3, 'NumComments')
+    return top_commented
+
 # Feature Engineering for Bot Detection
 def extract_features(data):
     data['post_frequency'] = data.groupby('Author')['Title'].transform('count')
@@ -118,6 +148,7 @@ def run_analysis():
     # Fetch data without displaying messages
     data = fetch_data('uniswap', limit=1000)
     data_past_two_weeks = fetch_data_past_two_weeks('uniswap')
+    top_commented_posts = fetch_top_commented_posts('uniswap')
 
     # Export data to CSV
     data.to_csv('reddit_data.csv', index=False)
@@ -144,18 +175,6 @@ def run_analysis():
     st.pyplot(plt)
 
     # Comment Activity per Day in the Past Two Weeks
-    st.subheader('Comment Activity per Day in the Past Two Weeks')
-    st.write('**Based on the number of comments on posts created per day in the Uniswap subreddit over the past two weeks.**')
-    comments_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date)['NumComments'].sum()
-    plt.figure(figsize=(10, 4))
-    sns.barplot(x=comments_per_day.index, y=comments_per_day.values, color='#ff007a')
-    plt.title('Comment Activity per Day in the Past Two Weeks')
-    plt.xlabel('Date')
-    plt.ylabel('Number of Comments')
-    plt.xticks(rotation=45)
-    st.pyplot(plt)
-
-    # Top Active Users by Post Count in the Past Two Weeks
     st.subheader('Top Active Users by Post Count in the Past Two Weeks')
     st.write('**Based on the number of posts created by each user in the Uniswap subreddit over the past two weeks.**')
     top_users = data_past_two_weeks['Author'].value_counts().head(10)
@@ -177,6 +196,19 @@ def run_analysis():
     bot_counts = potential_bots['bot_likelihood'].value_counts()
     fig = px.pie(values=bot_counts, names=bot_counts.index, title='Bot Likelihood Distribution', color_discrete_sequence=['#ff007a', '#ff9999', '#ffc0cb'])
     st.plotly_chart(fig)
+
+    # Top 3 Most Commented Posts of the Past Week
+    st.subheader('Top 3 Most Commented Posts of the Past Week')
+    st.write('**The top 3 most commented posts in the Uniswap subreddit over the past week.**')
+    for index, row in top_commented_posts.iterrows():
+        post_html = f"""
+        <div class="reddit-post">
+            <a class="reddit-post-title" href="{row['URL']}" target="_blank">{row['Title']}</a>
+            <div class="reddit-post-meta">by {row['Author']} | {row['NumComments']} comments | Score: {row['Score']}</div>
+            <div class="reddit-post-body">{row['Text'][:300]}...</div>
+        </div>
+        """
+        st.markdown(post_html, unsafe_allow_html=True)
 
 if __name__ == '__main__':
     run_analysis()
