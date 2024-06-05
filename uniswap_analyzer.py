@@ -10,6 +10,26 @@ from sklearn.ensemble import IsolationForest
 import numpy as np
 import plotly.express as px
 
+# Custom CSS for styling
+st.markdown("""
+    <style>
+    body {
+        font-family: 'Helvetica Neue', sans-serif;
+        background-color: #f5f5f5;
+    }
+    .reportview-container .main .block-container{
+        padding: 1rem;
+        background: #ffffff;
+    }
+    .css-18e3th9 {
+        padding: 1rem;
+    }
+    .stMarkdown p {
+        font-family: 'Helvetica Neue', sans-serif;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 # Fetch environment variables
 REDDIT_CLIENT_ID = os.getenv('REDDIT_CLIENT_ID')
 REDDIT_CLIENT_SECRET = os.getenv('REDDIT_CLIENT_SECRET')
@@ -119,10 +139,11 @@ def run_analysis():
     st.write('**Based on the number of posts created per day in the Uniswap subreddit over the past two weeks.**')
     posts_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date).size()
     plt.figure(figsize=(10, 4))
-    posts_per_day.plot(kind='bar')
+    sns.barplot(x=posts_per_day.index, y=posts_per_day.values, color='#ff007a')
     plt.title('Post Activity (Number of Posts per Day in the Past Two Weeks)')
     plt.xlabel('Date')
     plt.ylabel('Number of Posts')
+    plt.xticks(rotation=45)
     st.pyplot(plt)
 
     # Comment Activity per Day in the Past Two Weeks
@@ -130,10 +151,11 @@ def run_analysis():
     st.write('**Based on the number of comments on posts created per day in the Uniswap subreddit over the past two weeks.**')
     comments_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date)['NumComments'].sum()
     plt.figure(figsize=(10, 4))
-    comments_per_day.plot(kind='bar')
+    sns.barplot(x=comments_per_day.index, y=comments_per_day.values, color='#ff007a')
     plt.title('Comment Activity per Day in the Past Two Weeks')
     plt.xlabel('Date')
     plt.ylabel('Number of Comments')
+    plt.xticks(rotation=45)
     st.pyplot(plt)
 
     # Top Active Users by Post Count in the Past Two Weeks
@@ -141,7 +163,7 @@ def run_analysis():
     st.write('**Based on the number of posts created by each user in the Uniswap subreddit over the past two weeks.**')
     top_users = data_past_two_weeks['Author'].value_counts().head(10)
     plt.figure(figsize=(10, 4))
-    sns.barplot(x=top_users.values, y=top_users.index, palette='viridis')
+    sns.barplot(x=top_users.values, y=top_users.index, palette=['#ff007a'] * len(top_users))
     plt.title('Top Active Users by Post Count in the Past Two Weeks')
     plt.xlabel('Number of Posts')
     plt.ylabel('User')
@@ -156,7 +178,7 @@ def run_analysis():
 
     # Bot Likelihood Pie Chart
     bot_counts = potential_bots['bot_likelihood'].value_counts()
-    fig = px.pie(values=bot_counts, names=bot_counts.index, title='Bot Likelihood Distribution')
+    fig = px.pie(values=bot_counts, names=bot_counts.index, title='Bot Likelihood Distribution', color_discrete_sequence=['#ff007a', '#ff9999', '#ffc0cb'])
     st.plotly_chart(fig)
 
 if __name__ == '__main__':
