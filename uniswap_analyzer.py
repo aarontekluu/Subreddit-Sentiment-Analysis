@@ -169,16 +169,22 @@ def run_analysis():
     sentiment_color = ''
     if current_week_comments > baseline_comments_per_week * 1.1:
         sentiment_color = 'green'
+        sentiment_description = "This indicates a significant increase in engagement (more than 10% above the baseline)."
     elif baseline_comments_per_week * 0.9 <= current_week_comments <= baseline_comments_per_week * 1.1:
         sentiment_color = 'yellow'
+        sentiment_description = "This indicates a stable engagement level (within 10% of the baseline)."
     else:
         sentiment_color = 'red'
+        sentiment_description = "This indicates a significant decrease in engagement (more than 10% below the baseline)."
 
     # Display Sentiment Analysis
     st.markdown(f"""
         <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;">
             <h2 style="color:white;text-align:center;">Weekly Engagement: {sentiment_color.capitalize()}</h2>
-            <p style="color:white;text-align:center;">Based on the average comments per week, the engagement this week is {sentiment_color.capitalize()}.</p>
+            <p style="color:white;text-align:center;">
+                Based on the average comments per week, the engagement this week is {sentiment_color.capitalize()}.
+                {sentiment_description}
+            </p>
         </div>
         """, unsafe_allow_html=True)
 
