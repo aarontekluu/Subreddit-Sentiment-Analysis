@@ -146,7 +146,7 @@ def detect_bots(features):
 # Main Function to Run the Analysis
 def run_analysis():
     # Fetch data without displaying messages
-    data = fetch_data('uniswap', limit=1000)
+    data = fetch_data('uniswap', limit=500)
     data_past_two_weeks = fetch_data_past_two_weeks('uniswap')
     top_commented_posts = fetch_top_commented_posts('uniswap')
 
@@ -156,6 +156,31 @@ def run_analysis():
     # Convert CreatedUTC to datetime
     data['Date'] = pd.to_datetime(data['CreatedUTC'], unit='s')
     data_past_two_weeks['Date'] = pd.to_datetime(data_past_two_weeks['CreatedUTC'], unit='s')
+
+    # Calculate Baseline Engagement (Average Comments per Week)
+    data['Week'] = data['Date'].dt.isocalendar().week
+    baseline_comments_per_week = data.groupby('Week')['NumComments'].mean().mean()
+
+    # Calculate Current Week's Engagement
+    current_week = data['Week'].max()
+    current_week_comments = data[data['Week'] == current_week]['NumComments'].sum()
+
+    # Determine Sentiment Color
+    sentiment_color = ''
+    if current_week_comments > baseline_comments_per_week * 1.1:
+        sentiment_color = 'green'
+    elif baseline_comments_per_week * 0.9 <= current_week_comments <= baseline_comments_per_week * 1.1:
+        sentiment_color = 'yellow'
+    else:
+        sentiment_color = 'red'
+
+    # Display Sentiment Analysis
+    st.markdown(f"""
+        <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;">
+            <h2 style="color:white;text-align:center;">Weekly Engagement: {sentiment_color.capitalize()}</h2>
+            <p style="color:white;text-align:center;">Based on the average comments per week, the engagement this week is {sentiment_color.capitalize()}.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Extract Features and Detect Bots
     features = extract_features(data)
@@ -175,6 +200,18 @@ def run_analysis():
     st.pyplot(plt)
 
     # Comment Activity per Day in the Past Two Weeks
+    st.subheader('Comment Activity per Day in the Past Two Weeks')
+    st.write('**Based on the number of comments on posts created per day in the Uniswap subreddit over the past two weeks.**')
+    comments_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date)['NumComments'].sum()
+    plt.figure(figsize=(10, 4))
+    sns.barplot(x=comments_per_day.index, y=comments_per_day.values, color='#ff007a')
+    plt.title('Comment Activity per Day in the Past Two Weeks')
+    plt.xlabel('Date')
+    plt.ylabel('Number of Comments')
+    plt.xticks(rotation=45)
+    st.pyplot(plt)
+
+    # Top Active Users by Post Count in the Past Two Weeks
     st.subheader('Top Active Users by Post Count in the Past Two Weeks')
     st.write('**Based on the number of posts created by each user in the Uniswap subreddit over the past two weeks.**')
     top_users = data_past_two_weeks['Author'].value_counts().head(10)
@@ -199,7 +236,7 @@ def run_analysis():
 
     # Top 3 Most Commented Posts of the Past Week
     st.subheader('Top 3 Most Commented Posts of the Past Week')
-    st.write('**The top 3 most commented posts in the Uniswap subreddit over the past week.**')
+    st.write('**Comments are often a better proxy for popularity than upvotes because they indicate active engagement and discussions within the community. Here are the top 3 most commented posts in the Uniswap subreddit over the past week.**')
     for index, row in top_commented_posts.iterrows():
         post_html = f"""
         <div class="reddit-post">
