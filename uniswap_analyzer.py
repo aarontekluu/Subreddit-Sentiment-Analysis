@@ -5,14 +5,79 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
-from sklearn.ensemble import IsolationForest
 from wordcloud import WordCloud
+from sklearn.ensemble import IsolationForest
 import numpy as np
 import plotly.express as px
 
+# Custom CSS for styling
+st.markdown("""
+    <style>
+    body {
+        font-family: 'Helvetica Neue', sans-serif;
+        background-color: #f5f5f5;
+    }
+    .reportview-container .main .block-container{
+        padding: 1rem;
+        background: #ffffff;
+    }
+    .css-18e3th9 {
+        padding: 1rem;
+    }
+    .stMarkdown p {
+        font-family: 'Helvetica Neue', sans-serif;
+    }
+    .reddit-post {
+        border: 1px solid #e1e4e8;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 10px;
+        background: #fff;
+    }
+    .reddit-post-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #0079d3;
+        text-decoration: none;
+    }
+    .reddit-post-meta {
+        font-size: 12px;
+        color: #878a8c;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Fetch environment variables
+REDDIT_CLIENT_ID = os.getenv('REDDIT_CLIENT_ID')
+REDDIT_CLIENT_SECRET = os.getenv('REDDIT_CLIENT_SECRET')
+REDDIT_USERNAME = os.getenv('REDDIT_USERNAME')
+REDDIT_PASSWORD = os.getenv('REDDIT_PASSWORD')
+REDDIT_USER_AGENT = os.getenv('REDDIT_USER_AGENT')
+
+# Step 1: Authenticate and get access token
+auth = requests.auth.HTTPBasicAuth(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET)
+data = {'grant_type': 'password', 'username': REDDIT_USERNAME, 'password': REDDIT_PASSWORD}
+headers = {'User-Agent': REDDIT_USER_AGENT}
+
+res = requests.post('https://www.reddit.com/api/v1/access_token', auth=auth, data=data, headers=headers)
+if res.status_code == 200:
+    token = res.json()['access_token']
+    print("Access token:", token)
+else:
+    print("Failed to get access token:", res.json())
+    exit()
+
+# Step 2: Use the access token with PRAW
+reddit = praw.Reddit(
+    client_id=REDDIT_CLIENT_ID,
+    client_secret=REDDIT_CLIENT_SECRET,
+    user_agent=REDDIT_USER_AGENT,
+    username=REDDIT_USERNAME,
+    password=REDDIT_PASSWORD
+)
+
 # Fetch Data from Uniswap Subreddit
-@st.cache_data(ttl=600)
-def fetch_data(subreddit_name, limit=500):
+def fetch_data(subreddit_name, limit=1000):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
     for post in subreddit.top(limit=limit):
@@ -24,7 +89,6 @@ def fetch_data(subreddit_name, limit=500):
     return df
 
 # Fetch Data for the Past Two Weeks
-@st.cache_data(ttl=600)
 def fetch_data_past_two_weeks(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -38,7 +102,6 @@ def fetch_data_past_two_weeks(subreddit_name):
     return df
 
 # Fetch Top 3 Most Commented Posts of the Past Week
-@st.cache_data(ttl=600)
 def fetch_top_commented_posts(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -87,18 +150,8 @@ def run_analysis():
     data_past_two_weeks = fetch_data_past_two_weeks('uniswap')
     top_commented_posts = fetch_top_commented_posts('uniswap')
 
-    # Filter out posts from the Uniswap bot
-    bot_username = 'UniswapBot'  # Replace with the actual username of the bot
-    data = data[data['Author'] != bot_username]
-    data_past_two_weeks = data_past_two_weeks[data_past_two_weeks['Author'] != bot_username]
-
     # Export data to CSV
-    csv_file_path = 'reddit_data.csv'
-    data.to_csv(csv_file_path, index=False)
-    
-    # Confirmation message
-    if os.path.exists(csv_file_path):
-        st.success(f"Data exported successfully to {csv_file_path}")
+    data.to_csv('reddit_data.csv', index=False)
 
     # Convert CreatedUTC to datetime
     data['Date'] = pd.to_datetime(data['CreatedUTC'], unit='s')
@@ -129,7 +182,7 @@ def run_analysis():
         <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;">
             <h2 style="color:white;text-align:center;">Weekly Engagement: {sentiment_color.capitalize()}</h2>
             <p style="color:white;text-align:center;">
-                Based on the average comments per week ({baseline_comments_per_week:.2f} comments), the engagement this week is {sentiment_color.capitalize()}.
+                Based on the average comments per week, the engagement this week is {sentiment_color.capitalize()}.
                 {sentiment_description}
             </p>
         </div>
@@ -199,15 +252,6 @@ def run_analysis():
         </div>
         """
         st.markdown(post_html, unsafe_allow_html=True)
-
-    # Explanation of why comments are a better proxy for engagement than upvotes
-    st.subheader('Why Comments are a Better Proxy for Engagement than Upvotes')
-    st.write("""
-        **Comments provide a more accurate measure of engagement because:**
-        - **Active Participation**: Comments require more effort than upvotes and reflect active participation and discussion within the community.
-        - **Depth of Interaction**: Comments often provide insights, feedback, and opinions, showcasing deeper interactions.
-        - **Bot Mitigation**: Upvotes can be easily manipulated by bots, while comments (especially longer ones) are harder to automate convincingly.
-    """)
 
 if __name__ == '__main__':
     run_analysis()
