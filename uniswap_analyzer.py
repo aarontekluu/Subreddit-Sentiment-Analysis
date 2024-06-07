@@ -177,18 +177,12 @@ def run_analysis():
     - **Yellow**: Stable engagement (within 10% of the baseline)
     - **Red**: Decrease in engagement (more than 10% below the baseline)
     """)
-    
-    # Weekly Engagement Spreadsheet
-    st.subheader('Weekly Engagement Spreadsheet')
-    st.write('**A spreadsheet showing the engagement (comment frequency) over time on a weekly basis.**')
-    weekly_comments = data.groupby('Week')['NumComments'].sum().reset_index()
-    st.dataframe(weekly_comments)
 
     # Most Popular Questions
     st.subheader('Most Popular Questions on the Subreddit (Past Month)')
     st.write('**A spreadsheet showing the most popular questions asked on the Uniswap subreddit in the past month.**')
     popular_questions['Question'] = popular_questions.apply(lambda x: f'<a href="{x.URL}" target="_blank">{x.Question}</a>', axis=1)
-    popular_questions = popular_questions[['Question', 'NumComments']]
+    popular_questions = popular_questions[['Question', 'Number of Comments']]
     st.write(popular_questions.to_html(escape=False), unsafe_allow_html=True)
 
     # Post Activity (Number of Posts per Day in the Past Two Weeks)
