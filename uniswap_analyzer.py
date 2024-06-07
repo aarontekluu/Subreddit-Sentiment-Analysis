@@ -185,7 +185,7 @@ def run_analysis():
     st.dataframe(weekly_comments)
 
     # Most Popular Questions
-        st.subheader('Most Popular Questions on the Subreddit (Past Month)')
+    st.subheader('Most Popular Questions on the Subreddit (Past Month)')
     st.write('**A spreadsheet showing the most popular questions asked on the Uniswap subreddit in the past month.**')
     popular_questions['Question'] = popular_questions.apply(lambda x: f'<a href="{x.URL}" target="_blank">{x.Question}</a>', axis=1)
     popular_questions = popular_questions[['Question', 'NumComments']]
