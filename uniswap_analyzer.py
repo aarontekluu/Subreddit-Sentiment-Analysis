@@ -98,7 +98,6 @@ def detect_bots(features):
     features['bot_likelihood'] = np.select(conditions, choices, default='Unlikely')
     
     return features
-    
  def run_analysis():
     # Display Uniswap Logo
     display_logo()
