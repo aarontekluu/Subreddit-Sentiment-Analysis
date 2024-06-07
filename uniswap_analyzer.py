@@ -1,5 +1,5 @@
-import base64
 import os
+import base64
 import requests
 import praw
 import pandas as pd
@@ -13,21 +13,30 @@ import plotly.express as px
 
 # Function to load the image
 def get_base64(bin_file):
-    with open(bin_file, 'rb') as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
+    try:
+        with open(bin_file, 'rb') as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except FileNotFoundError:
+        st.error("Logo file not found. Please ensure the file path is correct.")
+        return None
 
 # Function to display the image
 def display_logo():
-    logo_base64 = get_base64('/mnt/data/Uniswap Word Mark_Pink.png')
-    st.markdown(
-        f"""
-        <div style="display: flex; justify-content: center;">
-            <img src="data:image/png;base64,{logo_base64}" style="width: 300px;"/>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    logo_path = os.getenv('UNISWAP_LOGO_PATH')
+    if logo_path:
+        logo_base64 = get_base64(logo_path)
+        if logo_base64:
+            st.markdown(
+                f"""
+                <div style="display: flex; justify-content: center;">
+                    <img src="data:image/png;base64,{logo_base64}" style="width: 300px;"/>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+    else:
+        st.error("Logo path environment variable not set. Please set the UNISWAP_LOGO_PATH environment variable.")
 
 # Fetch Data from Uniswap Subreddit
 @st.cache_data(ttl=600)
@@ -98,7 +107,7 @@ def detect_bots(features):
     features['bot_likelihood'] = np.select(conditions, choices, default='Unlikely')
     
     return features
-    
+
 # Main Function to Run the Analysis
 def run_analysis():
     # Display Uniswap Logo
@@ -137,11 +146,7 @@ def run_analysis():
     elif baseline_comments_per_week * 0.9 <= current_week_comments <= baseline_comments_per_week * 1.1:
         sentiment_color = 'yellow'
         sentiment_description = "This indicates a stable engagement level (within 10% of the baseline)."
-    else:
-        sentiment_color = 'red'
-        sentiment_description = "This indicates a significant decrease in engagement (more than 10% below the baseline)."
-
-    # Display Sentiment Analysis
+        # Display Sentiment Analysis
     st.markdown(f"""
         <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;">
             <h2 style="color:white;text-align:center;">Weekly Engagement: {sentiment_color.capitalize()}</h2>
@@ -168,6 +173,7 @@ def run_analysis():
     plt.ylabel('Number of Posts')
     plt.xticks(rotation=45)
     st.pyplot(plt)
+
     # Comment Activity per Day in the Past Two Weeks
     st.subheader('Comment Activity per Day in the Past Two Weeks')
     st.write('**Based on the number of comments on posts created per day in the Uniswap subreddit over the past two weeks.**')
@@ -227,3 +233,4 @@ def run_analysis():
 
 if __name__ == '__main__':
     run_analysis()
+
