@@ -98,7 +98,9 @@ def detect_bots(features):
     features['bot_likelihood'] = np.select(conditions, choices, default='Unlikely')
     
     return features
- def run_analysis():
+    
+# Main Function to Run the Analysis
+def run_analysis():
     # Display Uniswap Logo
     display_logo()
 
@@ -166,7 +168,6 @@ def detect_bots(features):
     plt.ylabel('Number of Posts')
     plt.xticks(rotation=45)
     st.pyplot(plt)
-
     # Comment Activity per Day in the Past Two Weeks
     st.subheader('Comment Activity per Day in the Past Two Weeks')
     st.write('**Based on the number of comments on posts created per day in the Uniswap subreddit over the past two weeks.**')
