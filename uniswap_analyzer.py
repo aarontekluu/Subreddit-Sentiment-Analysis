@@ -6,9 +6,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
 from wordcloud import WordCloud
-from sklearn.ensemble import IsolationForest
-import numpy as np
-import plotly.express as px
 
 # Custom CSS for styling
 st.markdown("""
@@ -114,35 +111,6 @@ def fetch_top_commented_posts(subreddit_name):
     top_commented = df.nlargest(3, 'NumComments')
     return top_commented
 
-# Feature Engineering for Bot Detection
-def extract_features(data):
-    data['post_frequency'] = data.groupby('Author')['Title'].transform('count')
-    data['avg_post_interval'] = data.groupby('Author')['Date'].diff().dt.total_seconds().fillna(0).mean()
-    data['content_similarity'] = data.groupby('Author')['Text'].transform(lambda x: x.duplicated().sum())
-    data['account_age'] = (pd.Timestamp.now() - data['Date']).dt.days
-    return data[['Author', 'post_frequency', 'avg_post_interval', 'content_similarity', 'account_age']].drop_duplicates()
-
-# Detect Potential Bot Activity
-def detect_bots(features):
-    iso_forest = IsolationForest(contamination=0.1, random_state=42)
-    iso_forest.fit(features[['post_frequency', 'avg_post_interval', 'content_similarity', 'account_age']])
-    features['anomaly'] = iso_forest.predict(features[['post_frequency', 'avg_post_interval', 'content_similarity', 'account_age']])
-    
-    # Classify bot likelihood
-    high_freq_threshold = features['post_frequency'].quantile(0.75)
-    low_freq_threshold = features['post_frequency'].quantile(0.25)
-    
-    conditions = [
-        (features['anomaly'] == -1) & (features['post_frequency'] > high_freq_threshold), # High post frequency
-        (features['anomaly'] == -1) & (features['post_frequency'] <= high_freq_threshold) & (features['post_frequency'] > low_freq_threshold), # Medium post frequency
-        (features['anomaly'] == -1) & (features['post_frequency'] <= low_freq_threshold), # Low post frequency
-        (features['anomaly'] == 1) # Not an anomaly
-    ]
-    choices = ['Highly Likely', 'Maybe', 'Unlikely', 'Unlikely']
-    features['bot_likelihood'] = np.select(conditions, choices, default='Unlikely')
-    
-    return features
-
 # Main Function to Run the Analysis
 def run_analysis():
     # Fetch data without displaying messages
@@ -182,16 +150,32 @@ def run_analysis():
         <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;">
             <h2 style="color:white;text-align:center;">Weekly Engagement: {sentiment_color.capitalize()}</h2>
             <p style="color:white;text-align:center;">
-                Based on the average comments per week, the engagement this week is {sentiment_color.capitalize()}.
+                Based on the average comments per week ({baseline_comments_per_week:.2f} comments), the engagement this week is {sentiment_color.capitalize()}.
                 {sentiment_description}
             </p>
         </div>
         """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    **Engagement color indicators:**
+    - **Green**: Increase in engagement (more than 10% above the baseline)
+    - **Yellow**: Stable engagement (within 10% of the baseline)
+    - **Red**: Decrease in engagement (more than 10% below the baseline)
+    """)
+    
+    # Weekly Engagement Spreadsheet
+    st.subheader('Weekly Engagement Spreadsheet')
+    st.write('**A spreadsheet showing the engagement (comment frequency) over time on a weekly basis.**')
+    weekly_comments = data.groupby('Week')['NumComments'].sum().reset_index()
+    st.dataframe(weekly_comments)
 
-    # Extract Features and Detect Bots
-    features = extract_features(data)
-    features = detect_bots(features)
-    potential_bots = features[features['anomaly'] == -1]
+    # Most Common Questions
+    st.subheader('Most Common Questions on the Subreddit')
+    st.write('**A spreadsheet showing the most common questions asked on the Uniswap subreddit.**')
+    questions = data[data['Title'].str.contains('\?')]
+    common_questions = questions['Title'].value_counts().reset_index()
+    common_questions.columns = ['Question', 'Count']
+    st.dataframe(common_questions.head(10))
 
     # Post Activity (Number of Posts per Day in the Past Two Weeks)
     st.subheader('Post Activity (Number of Posts per Day in the Past Two Weeks)')
@@ -227,18 +211,6 @@ def run_analysis():
     plt.xlabel('Number of Posts')
     plt.ylabel('User')
     st.pyplot(plt)
-
-    # Potential Bot Activity
-    st.subheader('Potential Bot Activity')
-    st.write('**Determined by high post frequency, regular post intervals, and repetitive content. Based on analysis of posting behavior and content similarity.**')
-    total_bots = potential_bots.shape[0]
-    total_sample_size = features.shape[0]
-    st.write(f'Total Number of Potential Bots: {total_bots} out of {total_sample_size} posts analyzed.')
-
-    # Bot Likelihood Pie Chart
-    bot_counts = potential_bots['bot_likelihood'].value_counts()
-    fig = px.pie(values=bot_counts, names=bot_counts.index, title='Bot Likelihood Distribution', color_discrete_sequence=['#ff007a', '#ff9999', '#ffc0cb'])
-    st.plotly_chart(fig)
 
     # Top 3 Most Commented Posts of the Past Week
     st.subheader('Top 3 Most Commented Posts of the Past Week')
