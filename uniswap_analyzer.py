@@ -1,5 +1,4 @@
 import os
-import base64
 import requests
 import praw
 import pandas as pd
@@ -10,33 +9,6 @@ from sklearn.ensemble import IsolationForest
 from wordcloud import WordCloud
 import numpy as np
 import plotly.express as px
-
-# Function to load the image
-def get_base64(bin_file):
-    try:
-        with open(bin_file, 'rb') as f:
-            data = f.read()
-        return base64.b64encode(data).decode()
-    except FileNotFoundError:
-        st.error("Logo file not found. Please ensure the file path is correct.")
-        return None
-
-# Function to display the image
-def display_logo():
-    logo_path = os.getenv('UNISWAP_LOGO_PATH')
-    if logo_path:
-        logo_base64 = get_base64(logo_path)
-        if logo_base64:
-            st.markdown(
-                f"""
-                <div style="display: flex; justify-content: center;">
-                    <img src="data:image/png;base64,{logo_base64}" style="width: 300px;"/>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-    else:
-        st.error("Logo path environment variable not set. Please set the UNISWAP_LOGO_PATH environment variable.")
 
 # Fetch Data from Uniswap Subreddit
 @st.cache_data(ttl=600)
@@ -110,9 +82,6 @@ def detect_bots(features):
 
 # Main Function to Run the Analysis
 def run_analysis():
-    # Display Uniswap Logo
-    display_logo()
-
     # Fetch data without displaying messages
     data = fetch_data('uniswap', limit=500)
     data_past_two_weeks = fetch_data_past_two_weeks('uniswap')
@@ -124,7 +93,12 @@ def run_analysis():
     data_past_two_weeks = data_past_two_weeks[data_past_two_weeks['Author'] != bot_username]
 
     # Export data to CSV
-    data.to_csv('reddit_data.csv', index=False)
+    csv_file_path = 'reddit_data.csv'
+    data.to_csv(csv_file_path, index=False)
+    
+    # Confirmation message
+    if os.path.exists(csv_file_path):
+        st.success(f"Data exported successfully to {csv_file_path}")
 
     # Convert CreatedUTC to datetime
     data['Date'] = pd.to_datetime(data['CreatedUTC'], unit='s')
@@ -146,7 +120,11 @@ def run_analysis():
     elif baseline_comments_per_week * 0.9 <= current_week_comments <= baseline_comments_per_week * 1.1:
         sentiment_color = 'yellow'
         sentiment_description = "This indicates a stable engagement level (within 10% of the baseline)."
-        # Display Sentiment Analysis
+    else:
+        sentiment_color = 'red'
+        sentiment_description = "This indicates a significant decrease in engagement (more than 10% below the baseline)."
+
+    # Display Sentiment Analysis
     st.markdown(f"""
         <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;">
             <h2 style="color:white;text-align:center;">Weekly Engagement: {sentiment_color.capitalize()}</h2>
@@ -233,4 +211,3 @@ def run_analysis():
 
 if __name__ == '__main__':
     run_analysis()
-
