@@ -41,6 +41,9 @@ st.markdown("""
         font-size: 12px;
         color: #878a8c;
     }
+    .engagement-box {
+        font-size: 1.5em;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -111,12 +114,25 @@ def fetch_top_commented_posts(subreddit_name):
     top_commented = df.nlargest(3, 'NumComments')
     return top_commented
 
+# Fetch Most Popular Questions from the Past Month
+def fetch_popular_questions(subreddit_name):
+    subreddit = reddit.subreddit(subreddit_name)
+    posts = []
+    for post in subreddit.top(time_filter='month', limit=1000):
+        if '?' in post.title:
+            author_name = post.author.name if post.author else 'Unknown'
+            post_url = f"https://www.reddit.com{post.permalink}"
+            posts.append([post.title, post.num_comments, post_url])
+    df = pd.DataFrame(posts, columns=['Question', 'NumComments', 'URL'])
+    return df.sort_values(by='NumComments', ascending=False).head(10)
+
 # Main Function to Run the Analysis
 def run_analysis():
     # Fetch data without displaying messages
     data = fetch_data('uniswap', limit=500)
     data_past_two_weeks = fetch_data_past_two_weeks('uniswap')
     top_commented_posts = fetch_top_commented_posts('uniswap')
+    popular_questions = fetch_popular_questions('uniswap')
 
     # Export data to CSV
     data.to_csv('reddit_data.csv', index=False)
@@ -147,8 +163,7 @@ def run_analysis():
 
     # Display Sentiment Analysis
     st.markdown(f"""
-        <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;">
-            <h2 style="color:white;text-align:center;">Weekly Engagement: {sentiment_color.capitalize()}</h2>
+        <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;" class="engagement-box">
             <p style="color:white;text-align:center;">
                 Based on the average comments per week ({baseline_comments_per_week:.2f} comments), the engagement this week is {sentiment_color.capitalize()}.
                 {sentiment_description}
@@ -169,13 +184,12 @@ def run_analysis():
     weekly_comments = data.groupby('Week')['NumComments'].sum().reset_index()
     st.dataframe(weekly_comments)
 
-    # Most Common Questions
-    st.subheader('Most Common Questions on the Subreddit')
-    st.write('**A spreadsheet showing the most common questions asked on the Uniswap subreddit.**')
-    questions = data[data['Title'].str.contains('\?')]
-    common_questions = questions['Title'].value_counts().reset_index()
-    common_questions.columns = ['Question', 'Count']
-    st.dataframe(common_questions.head(10))
+    # Most Popular Questions
+        st.subheader('Most Popular Questions on the Subreddit (Past Month)')
+    st.write('**A spreadsheet showing the most popular questions asked on the Uniswap subreddit in the past month.**')
+    popular_questions['Question'] = popular_questions.apply(lambda x: f'<a href="{x.URL}" target="_blank">{x.Question}</a>', axis=1)
+    popular_questions = popular_questions[['Question', 'NumComments']]
+    st.write(popular_questions.to_html(escape=False), unsafe_allow_html=True)
 
     # Post Activity (Number of Posts per Day in the Past Two Weeks)
     st.subheader('Post Activity (Number of Posts per Day in the Past Two Weeks)')
@@ -214,7 +228,7 @@ def run_analysis():
 
     # Top 3 Most Commented Posts of the Past Week
     st.subheader('Top 3 Most Commented Posts of the Past Week')
-    st.write('**Comments are often a better proxy for popularity than upvotes because they indicate active engagement and discussions within the community. Here are the top 3 most commented posts in the Uniswap subreddit over the past week.**')
+    st.write('**Comments are a better proxy for popularity than upvotes because they indicate active engagement and discussions within the community. Here are the top 3 most commented posts in the Uniswap subreddit over the past week.**')
     for index, row in top_commented_posts.iterrows():
         post_html = f"""
         <div class="reddit-post">
