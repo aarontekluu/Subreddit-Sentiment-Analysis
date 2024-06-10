@@ -1,5 +1,6 @@
 import os
 import tweepy
+import requests
 import praw
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,24 +11,33 @@ from wordcloud import WordCloud
 # Load secrets from Streamlit
 TWITTER_API_KEY = st.secrets["TWITTER_API_KEY"]
 TWITTER_API_SECRET_KEY = st.secrets["TWITTER_API_SECRET_KEY"]
-TWITTER_ACCESS_TOKEN = st.secrets["TWITTER_ACCESS_TOKEN"]
-TWITTER_ACCESS_TOKEN_SECRET = st.secrets["TWITTER_ACCESS_TOKEN_SECRET"]
+TWITTER_BEARER_TOKEN = st.secrets["TWITTER_BEARER_TOKEN"]
 REDDIT_CLIENT_ID = st.secrets["REDDIT_CLIENT_ID"]
 REDDIT_CLIENT_SECRET = st.secrets["REDDIT_CLIENT_SECRET"]
 REDDIT_USER_AGENT = st.secrets["REDDIT_USER_AGENT"]
 REDDIT_USERNAME = st.secrets["REDDIT_USERNAME"]
 REDDIT_PASSWORD = st.secrets["REDDIT_PASSWORD"]
 
-# Authenticate to Twitter
+# Authenticate to Twitter (Tweepy V2)
 auth = tweepy.OAuthHandler(TWITTER_API_KEY, TWITTER_API_SECRET_KEY)
 auth.set_access_token(TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET)
 api = tweepy.API(auth)
 
-def fetch_tweets(username, count=5):
+def fetch_tweets_v2(username, count=5):
     try:
-        tweets = api.user_timeline(screen_name=username, count=count, tweet_mode='extended')
-        return [{'text': tweet.full_text, 'url': f"https://twitter.com/{username}/status/{tweet.id}"} for tweet in tweets]
-    except tweepy.errors.TweepyException as e:
+        user_response = requests.get(
+            f"https://api.twitter.com/2/users/by/username/{username}",
+            headers={"Authorization": f"Bearer {TWITTER_BEARER_TOKEN}"}
+        )
+        user_id = user_response.json()['data']['id']
+        tweets_response = requests.get(
+            f"https://api.twitter.com/2/users/{user_id}/tweets",
+            headers={"Authorization": f"Bearer {TWITTER_BEARER_TOKEN}"},
+            params={"max_results": count, "tweet.fields": "id,text"}
+        )
+        tweets = tweets_response.json()['data']
+        return [{'text': tweet['text'], 'url': f"https://twitter.com/{username}/status/{tweet['id']}"} for tweet in tweets]
+    except Exception as e:
         st.error(f"Failed to fetch tweets for {username}: {e}")
         return []
 
@@ -191,7 +201,7 @@ def run_analysis():
     usernames = ['Uniswap', 'UniswapFND', 'haydenzadams']
     recent_tweets = []
     for username in usernames:
-        tweets = fetch_tweets(username)
+        tweets = fetch_tweets_v2(username)
         recent_tweets.extend(tweets)
 
     for tweet in recent_tweets:
