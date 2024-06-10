@@ -21,14 +21,17 @@ REDDIT_USERNAME = st.secrets["REDDIT_USERNAME"]
 REDDIT_PASSWORD = st.secrets["REDDIT_PASSWORD"]
 
 # Authenticate to Twitter (Tweepy V2)
-client = tweepy.Client(bearer_token=TWITTER_BEARER_TOKEN)
+auth = tweepy.OAuth1UserHandler(
+    TWITTER_API_KEY, TWITTER_API_SECRET_KEY,
+    TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET
+)
+api = tweepy.API(auth)
 
 def fetch_tweets_v2(username, count=5):
     try:
-        user = client.get_user(username=username, user_auth=True)
-        user_id = user.data.id
-        tweets = client.get_users_tweets(id=user_id, max_results=count, tweet_fields=['id', 'text'], user_auth=True)
-        return [{'text': tweet.text, 'url': f"https://twitter.com/{username}/status/{tweet.id}"} for tweet in tweets.data]
+        user = api.get_user(screen_name=username)
+        tweets = api.user_timeline(screen_name=username, count=count, tweet_mode='extended')
+        return [{'text': tweet.full_text, 'url': f"https://twitter.com/{username}/status/{tweet.id}"} for tweet in tweets]
     except Exception as e:
         st.error(f"Failed to fetch tweets for {username}: {e}")
         return []
