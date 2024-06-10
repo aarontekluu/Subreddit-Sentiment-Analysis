@@ -166,7 +166,7 @@ def run_analysis():
     comments_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date)['NumComments'].sum()
     plt.figure(figsize=(10, 4))
     sns.barplot(x=comments_per_day.index, y=comments_per_day.values, color='#ff007a')
-        plt.title('Comment Activity per Day in the Past Two Weeks')
+    plt.title('Comment Activity per Day in the Past Two Weeks')
     plt.xlabel('Date')
     plt.ylabel('Number of Comments')
     plt.xticks(rotation=45)
