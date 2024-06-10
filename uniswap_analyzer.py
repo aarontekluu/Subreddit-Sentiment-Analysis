@@ -1,5 +1,5 @@
 import os
-import requests
+import tweepy
 import praw
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -7,67 +7,27 @@ import seaborn as sns
 import streamlit as st
 from wordcloud import WordCloud
 
-# Custom CSS for styling
-st.markdown("""
-    <style>
-    body {
-        font-family: 'Helvetica Neue', sans-serif;
-        background-color: #f5f5f5;
-    }
-    .reportview-container .main .block-container{
-        padding: 1rem;
-        background: #ffffff;
-    }
-    .css-18e3th9 {
-        padding: 1rem;
-    }
-    .stMarkdown p {
-        font-family: 'Helvetica Neue', sans-serif;
-    }
-    .reddit-post {
-        border: 1px solid #e1e4e8;
-        border-radius: 5px;
-        padding: 10px;
-        margin-bottom: 10px;
-        background: #fff;
-    }
-    .reddit-post-title {
-        font-size: 18px;
-        font-weight: bold;
-        color: #0079d3;
-        text-decoration: none;
-    }
-    .reddit-post-meta {
-        font-size: 12px;
-        color: #878a8c;
-    }
-    .engagement-box {
-        font-size: 1.5em;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+# Load secrets from Streamlit
+TWITTER_API_KEY = st.secrets["TWITTER_API_KEY"]
+TWITTER_API_SECRET_KEY = st.secrets["TWITTER_API_SECRET_KEY"]
+TWITTER_ACCESS_TOKEN = st.secrets["TWITTER_ACCESS_TOKEN"]
+TWITTER_ACCESS_TOKEN_SECRET = st.secrets["TWITTER_ACCESS_TOKEN_SECRET"]
+REDDIT_CLIENT_ID = st.secrets["REDDIT_CLIENT_ID"]
+REDDIT_CLIENT_SECRET = st.secrets["REDDIT_CLIENT_SECRET"]
+REDDIT_USER_AGENT = st.secrets["REDDIT_USER_AGENT"]
+REDDIT_USERNAME = st.secrets["REDDIT_USERNAME"]
+REDDIT_PASSWORD = st.secrets["REDDIT_PASSWORD"]
 
-# Fetch environment variables
-REDDIT_CLIENT_ID = os.getenv('REDDIT_CLIENT_ID')
-REDDIT_CLIENT_SECRET = os.getenv('REDDIT_CLIENT_SECRET')
-REDDIT_USERNAME = os.getenv('REDDIT_USERNAME')
-REDDIT_PASSWORD = os.getenv('REDDIT_PASSWORD')
-REDDIT_USER_AGENT = os.getenv('REDDIT_USER_AGENT')
+# Authenticate to Twitter
+auth = tweepy.OAuthHandler(TWITTER_API_KEY, TWITTER_API_SECRET_KEY)
+auth.set_access_token(TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET)
+api = tweepy.API(auth)
 
-# Step 1: Authenticate and get access token
-auth = requests.auth.HTTPBasicAuth(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET)
-data = {'grant_type': 'password', 'username': REDDIT_USERNAME, 'password': REDDIT_PASSWORD}
-headers = {'User-Agent': REDDIT_USER_AGENT}
+def fetch_tweets(username, count=5):
+    tweets = api.user_timeline(screen_name=username, count=count, tweet_mode='extended')
+    return [{'text': tweet.full_text, 'url': f"https://twitter.com/{username}/status/{tweet.id}"} for tweet in tweets]
 
-res = requests.post('https://www.reddit.com/api/v1/access_token', auth=auth, data=data, headers=headers)
-if res.status_code == 200:
-    token = res.json()['access_token']
-    print("Access token:", token)
-else:
-    print("Failed to get access token:", res.json())
-    exit()
-
-# Step 2: Use the access token with PRAW
+# Authenticate to Reddit
 reddit = praw.Reddit(
     client_id=REDDIT_CLIENT_ID,
     client_secret=REDDIT_CLIENT_SECRET,
@@ -75,6 +35,9 @@ reddit = praw.Reddit(
     username=REDDIT_USERNAME,
     password=REDDIT_PASSWORD
 )
+
+def post_to_reddit(subreddit, title, url):
+    reddit.subreddit(subreddit).submit(title, url=url)
 
 # Fetch Data from Uniswap Subreddit
 def fetch_data(subreddit_name, limit=1000):
@@ -123,8 +86,8 @@ def fetch_popular_questions(subreddit_name):
             author_name = post.author.name if post.author else 'Unknown'
             post_url = f"https://www.reddit.com{post.permalink}"
             posts.append([post.title, post.num_comments, post_url])
-    df = pd.DataFrame(posts, columns=['Question', 'NumComments', 'URL'])
-    return df.sort_values(by='NumComments', ascending=False).head(10)
+    df = pd.DataFrame(posts, columns=['Question', 'Number of Comments', 'URL'])
+    return df.sort_values(by='Number of Comments', ascending=False).head(10)
 
 # Main Function to Run the Analysis
 def run_analysis():
@@ -188,8 +151,8 @@ def run_analysis():
     st.subheader('Most Popular Questions on the Subreddit (Past Month)')
     st.write('**A spreadsheet showing the most popular questions asked on the Uniswap subreddit in the past month.**')
     popular_questions['Question'] = popular_questions.apply(lambda x: f'<a href="{x.URL}" target="_blank">{x.Question}</a>', axis=1)
-    popular_questions = popular_questions[['Question', 'NumComments']]
-    st.write(popular_questions.to_html(escape=False), unsafe_allow_html=True)
+    popular_questions = popular_questions[['Question', 'Number of Comments']]
+    st.write(popular_questions.to_html(escape=False, index=False), unsafe_allow_html=True)
 
     # Post Activity (Number of Posts per Day in the Past Two Weeks)
     st.subheader('Post Activity (Number of Posts per Day in the Past Two Weeks)')
@@ -238,6 +201,18 @@ def run_analysis():
         </div>
         """
         st.markdown(post_html, unsafe_allow_html=True)
+
+    # Fetch and Post Tweets Section
+    st.subheader('Fetch and Post Tweets')
+    st.write('**Fetch the latest tweets from Uniswap and post them to the subreddit.**')
+
+    if st.button('Fetch and Post Tweets'):
+        usernames = ['Uniswap', 'UniswapFND', 'haydenzadams']
+        for username in usernames:
+            tweets = fetch_tweets(username)
+            for tweet in tweets:
+                post_to_reddit('uniswap', tweet['text'], tweet['url'])
+        st.write('Tweets fetched and posted successfully!')
 
 if __name__ == '__main__':
     run_analysis()
