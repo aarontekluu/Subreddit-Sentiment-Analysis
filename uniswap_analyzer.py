@@ -12,6 +12,8 @@ from wordcloud import WordCloud
 TWITTER_API_KEY = st.secrets["TWITTER_API_KEY"]
 TWITTER_API_SECRET_KEY = st.secrets["TWITTER_API_SECRET_KEY"]
 TWITTER_BEARER_TOKEN = st.secrets["TWITTER_BEARER_TOKEN"]
+TWITTER_ACCESS_TOKEN = st.secrets["TWITTER_ACCESS_TOKEN"]
+TWITTER_ACCESS_TOKEN_SECRET = st.secrets["TWITTER_ACCESS_TOKEN_SECRET"]
 REDDIT_CLIENT_ID = st.secrets["REDDIT_CLIENT_ID"]
 REDDIT_CLIENT_SECRET = st.secrets["REDDIT_CLIENT_SECRET"]
 REDDIT_USER_AGENT = st.secrets["REDDIT_USER_AGENT"]
@@ -127,7 +129,7 @@ def run_analysis():
         sentiment_color = 'red'
         sentiment_description = "This indicates a significant decrease in engagement (more than 10% below the baseline)."
 
-        st.markdown(f"""
+    st.markdown(f"""
         <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;" class="engagement-box">
             <p style="color:white;text-align:center;">
                 Based on the average comments per week ({baseline_comments_per_week:.2f} comments), the engagement this week is {sentiment_color.capitalize()}.
