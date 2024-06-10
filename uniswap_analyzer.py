@@ -186,27 +186,16 @@ def run_analysis():
         """
         st.markdown(post_html, unsafe_allow_html=True)
 
-    # Display recent tweets and provide option to repost them
-    st.subheader('Recent Tweets from Uniswap, Uniswap Foundation, and Hayden Adams')
-    st.write('**Below are the most recent tweets fetched from the specified Twitter accounts. You can choose to repost these tweets to the Uniswap subreddit.**')
-
-    usernames = ['Uniswap', 'UniswapFND', 'haydenzadams']
-    recent_tweets = []
-    for username in usernames:
-        tweets = fetch_tweets_v2(username)
-        recent_tweets.extend(tweets)
-
-    for tweet in recent_tweets:
-        tweet_html = f"""
-        <div class="reddit-post">
-            <a class="reddit-post-title" href="{tweet['url']}" target="_blank">{tweet['text']}</a>
-        </div>
-        """
-        st.markdown(tweet_html, unsafe_allow_html=True)
-
     if st.button('Fetch and Post Tweets'):
+        usernames = ['Uniswap', 'UniswapFND', 'haydenzadams']
+        recent_tweets = []
+        for username in usernames:
+            tweets = fetch_tweets_v2(username)
+            recent_tweets.extend(tweets)
+        
         for tweet in recent_tweets:
             post_to_reddit('uniswap', tweet['text'], tweet['url'])
+        
         st.write('Tweets fetched and posted successfully!')
 
 if __name__ == '__main__':
