@@ -21,24 +21,14 @@ REDDIT_USERNAME = st.secrets["REDDIT_USERNAME"]
 REDDIT_PASSWORD = st.secrets["REDDIT_PASSWORD"]
 
 # Authenticate to Twitter (Tweepy V2)
-auth = tweepy.OAuthHandler(TWITTER_API_KEY, TWITTER_API_SECRET_KEY)
-auth.set_access_token(TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET)
-api = tweepy.API(auth)
+client = tweepy.Client(bearer_token=TWITTER_BEARER_TOKEN)
 
 def fetch_tweets_v2(username, count=5):
     try:
-        user_response = requests.get(
-            f"https://api.twitter.com/2/users/by/username/{username}",
-            headers={"Authorization": f"Bearer {TWITTER_BEARER_TOKEN}"}
-        )
-        user_id = user_response.json()['data']['id']
-        tweets_response = requests.get(
-            f"https://api.twitter.com/2/users/{user_id}/tweets",
-            headers={"Authorization": f"Bearer {TWITTER_BEARER_TOKEN}"},
-            params={"max_results": count, "tweet.fields": "id,text"}
-        )
-        tweets = tweets_response.json()['data']
-        return [{'text': tweet['text'], 'url': f"https://twitter.com/{username}/status/{tweet['id']}"} for tweet in tweets]
+        user = client.get_user(username=username, user_auth=True)
+        user_id = user.data.id
+        tweets = client.get_users_tweets(id=user_id, max_results=count, tweet_fields=['id', 'text'], user_auth=True)
+        return [{'text': tweet.text, 'url': f"https://twitter.com/{username}/status/{tweet.id}"} for tweet in tweets.data]
     except Exception as e:
         st.error(f"Failed to fetch tweets for {username}: {e}")
         return []
