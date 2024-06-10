@@ -27,7 +27,7 @@ def fetch_tweets(username, count=5):
     try:
         tweets = api.user_timeline(screen_name=username, count=count, tweet_mode='extended')
         return [{'text': tweet.full_text, 'url': f"https://twitter.com/{username}/status/{tweet.id}"} for tweet in tweets]
-    except tweepy.TweepError as e:
+    except tweepy.errors.TweepyException as e:
         st.error(f"Failed to fetch tweets for {username}: {e}")
         return []
 
@@ -43,7 +43,6 @@ reddit = praw.Reddit(
 def post_to_reddit(subreddit, title, url):
     reddit.subreddit(subreddit).submit(title, url=url)
 
-# Fetch Data from Uniswap Subreddit
 def fetch_data(subreddit_name, limit=1000):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -55,7 +54,6 @@ def fetch_data(subreddit_name, limit=1000):
     df['Date'] = pd.to_datetime(df['CreatedUTC'], unit='s')
     return df
 
-# Fetch Data for the Past Two Weeks
 def fetch_data_past_two_weeks(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -68,7 +66,6 @@ def fetch_data_past_two_weeks(subreddit_name):
     df['Date'] = pd.to_datetime(df['CreatedUTC'], unit='s')
     return df
 
-# Fetch Top 3 Most Commented Posts of the Past Week
 def fetch_top_commented_posts(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -81,7 +78,6 @@ def fetch_top_commented_posts(subreddit_name):
     top_commented = df.nlargest(3, 'NumComments')
     return top_commented
 
-# Fetch Most Popular Questions from the Past Month
 def fetch_popular_questions(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -93,30 +89,23 @@ def fetch_popular_questions(subreddit_name):
     df = pd.DataFrame(posts, columns=['Question', 'Number of Comments', 'URL'])
     return df.sort_values(by='Number of Comments', ascending=False).head(10)
 
-# Main Function to Run the Analysis
 def run_analysis():
-    # Fetch data without displaying messages
     data = fetch_data('uniswap', limit=500)
     data_past_two_weeks = fetch_data_past_two_weeks('uniswap')
     top_commented_posts = fetch_top_commented_posts('uniswap')
     popular_questions = fetch_popular_questions('uniswap')
 
-    # Export data to CSV
     data.to_csv('reddit_data.csv', index=False)
 
-    # Convert CreatedUTC to datetime
     data['Date'] = pd.to_datetime(data['CreatedUTC'], unit='s')
     data_past_two_weeks['Date'] = pd.to_datetime(data_past_two_weeks['CreatedUTC'], unit='s')
 
-    # Calculate Baseline Engagement (Average Comments per Week)
     data['Week'] = data['Date'].dt.isocalendar().week
     baseline_comments_per_week = data.groupby('Week')['NumComments'].mean().mean()
 
-    # Calculate Current Week's Engagement
     current_week = data['Week'].max()
     current_week_comments = data[data['Week'] == current_week]['NumComments'].sum()
 
-    # Determine Sentiment Color
     sentiment_color = ''
     if current_week_comments > baseline_comments_per_week * 1.1:
         sentiment_color = 'green'
@@ -128,8 +117,7 @@ def run_analysis():
         sentiment_color = 'red'
         sentiment_description = "This indicates a significant decrease in engagement (more than 10% below the baseline)."
 
-    # Display Sentiment Analysis
-    st.markdown(f"""
+        st.markdown(f"""
         <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;" class="engagement-box">
             <p style="color:white;text-align:center;">
                 Based on the average comments per week ({baseline_comments_per_week:.2f} comments), the engagement this week is {sentiment_color.capitalize()}.
@@ -145,14 +133,12 @@ def run_analysis():
     - **Red**: Decrease in engagement (more than 10% below the baseline)
     """)
 
-    # Most Popular Questions
     st.subheader('Most Popular Questions on the Subreddit (Past Month)')
     st.write('**A spreadsheet showing the most popular questions asked on the Uniswap subreddit in the past month.**')
     popular_questions['Question'] = popular_questions.apply(lambda x: f'<a href="{x.URL}" target="_blank">{x.Question}</a>', axis=1)
     popular_questions = popular_questions[['Question', 'Number of Comments']]
     st.write(popular_questions.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # Post Activity (Number of Posts per Day in the Past Two Weeks)
     st.subheader('Post Activity (Number of Posts per Day in the Past Two Weeks)')
     st.write('**Based on the number of posts created per day in the Uniswap subreddit over the past two weeks.**')
     posts_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date).size()
@@ -164,7 +150,6 @@ def run_analysis():
     plt.xticks(rotation=45)
     st.pyplot(plt)
 
-    # Comment Activity per Day in the Past Two Weeks
     st.subheader('Comment Activity per Day in the Past Two Weeks')
     st.write('**Based on the number of comments on posts created per day in the Uniswap subreddit over the past two weeks.**')
     comments_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date)['NumComments'].sum()
@@ -176,7 +161,6 @@ def run_analysis():
     plt.xticks(rotation=45)
     st.pyplot(plt)
 
-    # Top Active Users by Post Count in the Past Two Weeks
     st.subheader('Top Active Users by Post Count in the Past Two Weeks')
     st.write('**Based on the number of posts created by each user in the Uniswap subreddit over the past two weeks.**')
     top_users = data_past_two_weeks['Author'].value_counts().head(10)
