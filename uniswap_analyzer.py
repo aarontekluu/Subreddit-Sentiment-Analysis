@@ -140,12 +140,6 @@ def run_analysis():
     - **Yellow**: Stable engagement (within 10% of the baseline)
     - **Red**: Decrease in engagement (more than 10% below the baseline)
     """)
-    
-    # Weekly Engagement Spreadsheet
-    st.subheader('Weekly Engagement Spreadsheet')
-    st.write('**A spreadsheet showing the engagement (comment frequency) over time on a weekly basis.**')
-    weekly_comments = data.groupby('Week')['NumComments'].sum().reset_index()
-    st.dataframe(weekly_comments)
 
     # Most Popular Questions
     st.subheader('Most Popular Questions on the Subreddit (Past Month)')
@@ -172,7 +166,7 @@ def run_analysis():
     comments_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date)['NumComments'].sum()
     plt.figure(figsize=(10, 4))
     sns.barplot(x=comments_per_day.index, y=comments_per_day.values, color='#ff007a')
-    plt.title('Comment Activity per Day in the Past Two Weeks')
+        plt.title('Comment Activity per Day in the Past Two Weeks')
     plt.xlabel('Date')
     plt.ylabel('Number of Comments')
     plt.xticks(rotation=45)
@@ -202,16 +196,27 @@ def run_analysis():
         """
         st.markdown(post_html, unsafe_allow_html=True)
 
-    # Fetch and Post Tweets Section
-    st.subheader('Fetch and Post Tweets')
-    st.write('**Fetch the latest tweets from Uniswap and post them to the subreddit.**')
+    # Display recent tweets and provide option to repost them
+    st.subheader('Recent Tweets from Uniswap, Uniswap Foundation, and Hayden Adams')
+    st.write('**Below are the most recent tweets fetched from the specified Twitter accounts. You can choose to repost these tweets to the Uniswap subreddit.**')
+
+    usernames = ['Uniswap', 'UniswapFND', 'haydenzadams']
+    recent_tweets = []
+    for username in usernames:
+        tweets = fetch_tweets(username)
+        recent_tweets.extend(tweets)
+
+    for tweet in recent_tweets:
+        tweet_html = f"""
+        <div class="reddit-post">
+            <a class="reddit-post-title" href="{tweet['url']}" target="_blank">{tweet['text']}</a>
+        </div>
+        """
+        st.markdown(tweet_html, unsafe_allow_html=True)
 
     if st.button('Fetch and Post Tweets'):
-        usernames = ['Uniswap', 'UniswapFND', 'haydenzadams']
-        for username in usernames:
-            tweets = fetch_tweets(username)
-            for tweet in tweets:
-                post_to_reddit('uniswap', tweet['text'], tweet['url'])
+        for tweet in recent_tweets:
+            post_to_reddit('uniswap', tweet['text'], tweet['url'])
         st.write('Tweets fetched and posted successfully!')
 
 if __name__ == '__main__':
