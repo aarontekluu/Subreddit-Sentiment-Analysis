@@ -7,3 +7,4 @@ wordcloud
 streamlit
 scikit-learn
 plotly
+requests
