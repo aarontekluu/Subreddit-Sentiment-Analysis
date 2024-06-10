@@ -24,8 +24,12 @@ auth.set_access_token(TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET)
 api = tweepy.API(auth)
 
 def fetch_tweets(username, count=5):
-    tweets = api.user_timeline(screen_name=username, count=count, tweet_mode='extended')
-    return [{'text': tweet.full_text, 'url': f"https://twitter.com/{username}/status/{tweet.id}"} for tweet in tweets]
+    try:
+        tweets = api.user_timeline(screen_name=username, count=count, tweet_mode='extended')
+        return [{'text': tweet.full_text, 'url': f"https://twitter.com/{username}/status/{tweet.id}"} for tweet in tweets]
+    except tweepy.TweepError as e:
+        st.error(f"Failed to fetch tweets for {username}: {e}")
+        return []
 
 # Authenticate to Reddit
 reddit = praw.Reddit(
