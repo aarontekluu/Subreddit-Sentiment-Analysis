@@ -14,6 +14,7 @@ REDDIT_CLIENT_SECRET = st.secrets["REDDIT_CLIENT_SECRET"]
 REDDIT_USER_AGENT = st.secrets["REDDIT_USER_AGENT"]
 REDDIT_USERNAME = st.secrets["REDDIT_USERNAME"]
 REDDIT_PASSWORD = st.secrets["REDDIT_PASSWORD"]
+OPENAI_API_KEY = st.secrets["OPENAI_API"]
 
 # Authenticate to Reddit
 reddit = praw.Reddit(
@@ -23,6 +24,9 @@ reddit = praw.Reddit(
     username=REDDIT_USERNAME,
     password=REDDIT_PASSWORD
 )
+
+# OpenAI configuration
+openai.api_key = OPENAI_API
 
 # Function to post responses on Reddit
 def post_to_reddit(subreddit, title, body):
