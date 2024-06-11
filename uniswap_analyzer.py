@@ -1,40 +1,20 @@
 import os
-import tweepy
-import requests
 import praw
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
 from wordcloud import WordCloud
+import openai
+import time
 
 # Load secrets from Streamlit
-TWITTER_API_KEY = st.secrets["TWITTER_API_KEY"]
-TWITTER_API_SECRET_KEY = st.secrets["TWITTER_API_SECRET_KEY"]
-TWITTER_BEARER_TOKEN = st.secrets["TWITTER_BEARER_TOKEN"]
-TWITTER_ACCESS_TOKEN = st.secrets["TWITTER_ACCESS_TOKEN"]
-TWITTER_ACCESS_TOKEN_SECRET = st.secrets["TWITTER_ACCESS_TOKEN_SECRET"]
 REDDIT_CLIENT_ID = st.secrets["REDDIT_CLIENT_ID"]
 REDDIT_CLIENT_SECRET = st.secrets["REDDIT_CLIENT_SECRET"]
 REDDIT_USER_AGENT = st.secrets["REDDIT_USER_AGENT"]
 REDDIT_USERNAME = st.secrets["REDDIT_USERNAME"]
 REDDIT_PASSWORD = st.secrets["REDDIT_PASSWORD"]
-
-# Authenticate to Twitter (Tweepy V2)
-auth = tweepy.OAuth1UserHandler(
-    TWITTER_API_KEY, TWITTER_API_SECRET_KEY,
-    TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET
-)
-api = tweepy.API(auth)
-
-def fetch_tweets_v2(username, count=5):
-    try:
-        user = api.get_user(screen_name=username)
-        tweets = api.user_timeline(screen_name=username, count=count, tweet_mode='extended')
-        return [{'text': tweet.full_text, 'url': f"https://twitter.com/{username}/status/{tweet.id}"} for tweet in tweets]
-    except Exception as e:
-        st.error(f"Failed to fetch tweets for {username}: {e}")
-        return []
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 
 # Authenticate to Reddit
 reddit = praw.Reddit(
@@ -45,9 +25,42 @@ reddit = praw.Reddit(
     password=REDDIT_PASSWORD
 )
 
-def post_to_reddit(subreddit, title, url):
-    reddit.subreddit(subreddit).submit(title, url=url)
+# Authenticate to OpenAI
+openai.api_key = OPENAI_API_KEY
 
+# Define the subreddit to monitor
+subreddit = reddit.subreddit('uniswap')
+
+# Keywords to look for in the posts
+keywords = {
+    'liquidity': 'https://support.uniswap.org/hc/en-us/articles/8643975058829-Why-did-my-transaction-fail',
+    'failed transactions': 'https://support.uniswap.org/hc/en-us/articles/8643975058829-Why-did-my-transaction-fail',
+    'meme coins': 'https://support.uniswap.org/hc/en-us/articles/17523135529997-Investment-scams'
+}
+
+# Function to generate a response using ChatGPT
+def generate_response(post_content, keyword, resource_link):
+    response = openai.Completion.create(
+        model="text-davinci-003",
+        prompt=f"A Reddit user asked about {keyword}:\n\n{post_content}\n\nProvide a helpful and informative response using the following resource: {resource_link}",
+        max_tokens=150
+    )
+    return response.choices[0].text.strip()
+
+# Function to check and respond to posts
+def check_and_respond():
+    for post in subreddit.new(limit=10):
+        post_title = post.title.lower()
+        post_body = post.selftext.lower()
+
+        for keyword, resource_link in keywords.items():
+            if keyword in post_title or post_body:
+                print(f"Responding to post: {post.title}")
+                response_message = generate_response(post_body, keyword, resource_link)
+                post.reply(response_message)
+                time.sleep(10)  # Sleep to avoid rate limits
+
+# Fetch Data from Uniswap Subreddit
 def fetch_data(subreddit_name, limit=1000):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -144,11 +157,6 @@ def run_analysis():
     popular_questions = popular_questions[['Question', 'Number of Comments']]
     st.write(popular_questions.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    st.subheader('Post Activity (Number of Posts per Day in the Past Two Weeks)')
-    st.write('**Based on the number of posts created per day in the Uniswap subreddit over the past two weeks.**')
-    posts_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date).size()
-    plt.figure(figsize=(10, 4))
-    sns.barplot(x=posts_per_day.index, y=posts_per_day.values, color='#ff007a')
     plt.title('Post Activity (Number of Posts per Day in the Past Two Weeks)')
     plt.xlabel('Date')
     plt.ylabel('Number of Posts')
@@ -189,18 +197,12 @@ def run_analysis():
         """
         st.markdown(post_html, unsafe_allow_html=True)
 
-    # Button to fetch and post tweets
-    if st.button('Fetch and Post Tweets'):
-        usernames = ['Uniswap', 'UniswapFND', 'haydenzadams']
-        recent_tweets = []
-        for username in usernames:
-            tweets = fetch_tweets_v2(username)
-            recent_tweets.extend(tweets)
-        
-        for tweet in recent_tweets:
-            post_to_reddit('uniswap', tweet['text'], tweet['url'])
-        
-        st.write('Tweets fetched and posted successfully!')
+    st.subheader('Automated Reddit Bot')
+    st.write('This bot will respond to posts with specific questions. Currently, it is set up to respond to posts asking about liquidity, failed transactions, and meme coins.')
+
+    if st.button('Run Reddit Bot'):
+        check_and_respond()
+        st.write('Bot has checked and responded to relevant posts.')
 
 if __name__ == '__main__':
     run_analysis()
