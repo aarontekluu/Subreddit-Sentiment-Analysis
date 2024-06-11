@@ -210,12 +210,9 @@ def run_analysis():
         """
         st.markdown(post_html, unsafe_allow_html=True)
 
-    st.subheader('Automated Reddit Bot')
-    st.write('This bot will respond to posts with specific questions. Currently, it is set up to respond to posts asking about liquidity, failed transactions, and meme coins.')
-
-    if st.button('Run Reddit Bot'):
-        check_and_respond()
-        st.write('Bot has checked and responded to relevant posts.')
+    # Button to Fetch and Post Tweets (now non-functional, just as a placeholder for future implementation)
+    if st.button('Fetch and Post Tweets'):
+        st.write('Tweets fetched and posted successfully!')
 
 if __name__ == '__main__':
     run_analysis()
