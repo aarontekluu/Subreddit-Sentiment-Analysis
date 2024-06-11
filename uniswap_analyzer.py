@@ -1,24 +1,20 @@
 import os
+import requests
 import praw
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
 from wordcloud import WordCloud
-import openai
-import time
+from openai import OpenAI
 
 # Load secrets from Streamlit
-try:
-    REDDIT_CLIENT_ID = st.secrets["REDDIT_CLIENT_ID"]
-    REDDIT_CLIENT_SECRET = st.secrets["REDDIT_CLIENT_SECRET"]
-    REDDIT_USER_AGENT = st.secrets["REDDIT_USER_AGENT"]
-    REDDIT_USERNAME = st.secrets["REDDIT_USERNAME"]
-    REDDIT_PASSWORD = st.secrets["REDDIT_PASSWORD"]
-    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-except KeyError as e:
-    st.error(f"Missing secret: {e}")
-    st.stop()
+REDDIT_CLIENT_ID = st.secrets["REDDIT_CLIENT_ID"]
+REDDIT_CLIENT_SECRET = st.secrets["REDDIT_CLIENT_SECRET"]
+REDDIT_USER_AGENT = st.secrets["REDDIT_USER_AGENT"]
+REDDIT_USERNAME = st.secrets["REDDIT_USERNAME"]
+REDDIT_PASSWORD = st.secrets["REDDIT_PASSWORD"]
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 
 # Authenticate to Reddit
 reddit = praw.Reddit(
@@ -29,44 +25,23 @@ reddit = praw.Reddit(
     password=REDDIT_PASSWORD
 )
 
-# Authenticate to OpenAI
-openai.api_key = OPENAI_API_KEY
+# Function to post responses on Reddit
+def post_to_reddit(subreddit, title, body):
+    reddit.subreddit(subreddit).submit(title, selftext=body)
 
-# Define the subreddit to monitor
-subreddit = reddit.subreddit('uniswap')
-
-# Keywords to look for in the posts
-keywords = {
-    'liquidity': 'https://support.uniswap.org/hc/en-us/articles/8643975058829-Why-did-my-transaction-fail',
-    'failed transactions': 'https://support.uniswap.org/hc/en-us/articles/8643975058829-Why-did-my-transaction-fail',
-    'meme coins': 'https://support.uniswap.org/hc/en-us/articles/17523135529997-Investment-scams'
-}
-
-# Function to generate a response using ChatGPT
-def generate_response(post_content, keyword, resource_link):
-    try:
-        response = openai.Completion.create(
-            model="text-davinci-003",
-            prompt=f"A Reddit user asked about {keyword}:\n\n{post_content}\n\nProvide a helpful and informative response using the following resource: {resource_link}",
-            max_tokens=150
-        )
-        return response.choices[0].text.strip()
-    except Exception as e:
-        st.error(f"Failed to generate response: {e}")
-        return "I'm sorry, I couldn't generate a response at this time."
-
-# Function to check and respond to posts
-def check_and_respond():
-    for post in subreddit.new(limit=10):
-        post_title = post.title.lower()
-        post_body = post.selftext.lower()
-
-        for keyword, resource_link in keywords.items():
-            if keyword in post_title or post_body:
-                st.write(f"Responding to post: {post.title}")
-                response_message = generate_response(post_body, keyword, resource_link)
-                post.reply(response_message)
-                time.sleep(10)  # Sleep to avoid rate limits
+# Function to respond to questions using OpenAI
+def respond_to_post(post):
+    prompt = f"Answer this question based on Uniswap support articles: {post.title} {post.selftext}"
+    response = OpenAI.Completion.create(
+        engine="davinci",
+        prompt=prompt,
+        max_tokens=150,
+        temperature=0.7,
+        top_p=1.0,
+        frequency_penalty=0.0,
+        presence_penalty=0.0
+    )
+    return response.choices[0].text.strip()
 
 # Fetch Data from Uniswap Subreddit
 def fetch_data(subreddit_name, limit=1000):
@@ -80,6 +55,7 @@ def fetch_data(subreddit_name, limit=1000):
     df['Date'] = pd.to_datetime(df['CreatedUTC'], unit='s')
     return df
 
+# Fetch Data for the Past Two Weeks
 def fetch_data_past_two_weeks(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -92,6 +68,7 @@ def fetch_data_past_two_weeks(subreddit_name):
     df['Date'] = pd.to_datetime(df['CreatedUTC'], unit='s')
     return df
 
+# Fetch Top 3 Most Commented Posts of the Past Week
 def fetch_top_commented_posts(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -104,6 +81,7 @@ def fetch_top_commented_posts(subreddit_name):
     top_commented = df.nlargest(3, 'NumComments')
     return top_commented
 
+# Fetch Popular Questions
 def fetch_popular_questions(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -115,23 +93,30 @@ def fetch_popular_questions(subreddit_name):
     df = pd.DataFrame(posts, columns=['Question', 'Number of Comments', 'URL'])
     return df.sort_values(by='Number of Comments', ascending=False).head(10)
 
+# Main Function to Run the Analysis
 def run_analysis():
+    # Fetch data without displaying messages
     data = fetch_data('uniswap', limit=500)
     data_past_two_weeks = fetch_data_past_two_weeks('uniswap')
     top_commented_posts = fetch_top_commented_posts('uniswap')
     popular_questions = fetch_popular_questions('uniswap')
 
+    # Export data to CSV
     data.to_csv('reddit_data.csv', index=False)
 
+    # Convert CreatedUTC to datetime
     data['Date'] = pd.to_datetime(data['CreatedUTC'], unit='s')
     data_past_two_weeks['Date'] = pd.to_datetime(data_past_two_weeks['CreatedUTC'], unit='s')
 
+    # Calculate Baseline Engagement (Average Comments per Week)
     data['Week'] = data['Date'].dt.isocalendar().week
     baseline_comments_per_week = data.groupby('Week')['NumComments'].mean().mean()
 
+    # Calculate Current Week's Engagement
     current_week = data['Week'].max()
     current_week_comments = data[data['Week'] == current_week]['NumComments'].sum()
 
+    # Determine Sentiment Color
     sentiment_color = ''
     if current_week_comments > baseline_comments_per_week * 1.1:
         sentiment_color = 'green'
@@ -143,7 +128,7 @@ def run_analysis():
         sentiment_color = 'red'
         sentiment_description = "This indicates a significant decrease in engagement (more than 10% below the baseline)."
 
-    st.markdown(f"""
+        st.markdown(f"""
         <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;" class="engagement-box">
             <p style="color:white;text-align:center;">
                 Based on the average comments per week ({baseline_comments_per_week:.2f} comments), the engagement this week is {sentiment_color.capitalize()}.
@@ -210,9 +195,16 @@ def run_analysis():
         """
         st.markdown(post_html, unsafe_allow_html=True)
 
-    # Button to Fetch and Post Tweets (now non-functional, just as a placeholder for future implementation)
-    if st.button('Fetch and Post Tweets'):
-        st.write('Tweets fetched and posted successfully!')
+    # Provide option to fetch and post tweets (code remains commented out for future use)
+    # st.subheader('Fetch and Post Tweets')
+    # st.write('**Below you can fetch and post tweets from the specified Twitter accounts to the Uniswap subreddit.**')
+    # if st.button('Fetch and Post Tweets'):
+    #     usernames = ['Uniswap', 'UniswapFND', 'haydenzadams']
+    #     for username in usernames:
+    #         tweets = fetch_tweets_v2(username)
+    #         for tweet in tweets:
+    #             post_to_reddit('uniswap', tweet['text'], tweet['url'])
+    #     st.write('Tweets fetched and posted successfully!')
 
 if __name__ == '__main__':
     run_analysis()
