@@ -7,4 +7,3 @@ streamlit
 scikit-learn
 plotly
 requests
-openai
