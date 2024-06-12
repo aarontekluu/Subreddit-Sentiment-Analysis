@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
 from wordcloud import WordCloud
-from openai import OpenAI
 
 # Load secrets from Streamlit
 REDDIT_CLIENT_ID = st.secrets["REDDIT_CLIENT_ID"]
@@ -14,7 +13,6 @@ REDDIT_CLIENT_SECRET = st.secrets["REDDIT_CLIENT_SECRET"]
 REDDIT_USER_AGENT = st.secrets["REDDIT_USER_AGENT"]
 REDDIT_USERNAME = st.secrets["REDDIT_USERNAME"]
 REDDIT_PASSWORD = st.secrets["REDDIT_PASSWORD"]
-OPENAI_API_KEY = st.secrets["OPENAI_API"]
 
 # Authenticate to Reddit
 reddit = praw.Reddit(
@@ -24,27 +22,6 @@ reddit = praw.Reddit(
     username=REDDIT_USERNAME,
     password=REDDIT_PASSWORD
 )
-
-# OpenAI configuration
-openai.api_key = OPENAI_API
-
-# Function to post responses on Reddit
-def post_to_reddit(subreddit, title, body):
-    reddit.subreddit(subreddit).submit(title, selftext=body)
-
-# Function to respond to questions using OpenAI
-def respond_to_post(post):
-    prompt = f"Answer this question based on Uniswap support articles: {post.title} {post.selftext}"
-    response = OpenAI.Completion.create(
-        engine="davinci",
-        prompt=prompt,
-        max_tokens=150,
-        temperature=0.7,
-        top_p=1.0,
-        frequency_penalty=0.0,
-        presence_penalty=0.0
-    )
-    return response.choices[0].text.strip()
 
 # Fetch Data from Uniswap Subreddit
 def fetch_data(subreddit_name, limit=1000):
@@ -85,10 +62,10 @@ def fetch_top_commented_posts(subreddit_name):
     return top_commented
 
 # Fetch Popular Questions
-def fetch_popular_questions(subreddit_name):
+def fetch_popular_questions(subreddit_name, time_filter='week'):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
-    for post in subreddit.top(time_filter='month', limit=1000):
+    for post in subreddit.top(time_filter=time_filter, limit=1000):
         if '?' in post.title:
             author_name = post.author.name if post.author else 'Unknown'
             post_url = f"https://www.reddit.com{post.permalink}"
@@ -98,11 +75,14 @@ def fetch_popular_questions(subreddit_name):
 
 # Main Function to Run the Analysis
 def run_analysis():
-    # Fetch data without displaying messages
+    st.title('Uniswap Subreddit Dashboard')
+
+    # Fetch data
     data = fetch_data('uniswap', limit=500)
     data_past_two_weeks = fetch_data_past_two_weeks('uniswap')
     top_commented_posts = fetch_top_commented_posts('uniswap')
-    popular_questions = fetch_popular_questions('uniswap')
+    popular_questions_week = fetch_popular_questions('uniswap', time_filter='week')
+    popular_questions_month = fetch_popular_questions('uniswap', time_filter='month')
 
     # Export data to CSV
     data.to_csv('reddit_data.csv', index=False)
@@ -111,47 +91,21 @@ def run_analysis():
     data['Date'] = pd.to_datetime(data['CreatedUTC'], unit='s')
     data_past_two_weeks['Date'] = pd.to_datetime(data_past_two_weeks['CreatedUTC'], unit='s')
 
-    # Calculate Baseline Engagement (Average Comments per Week)
-    data['Week'] = data['Date'].dt.isocalendar().week
-    baseline_comments_per_week = data.groupby('Week')['NumComments'].mean().mean()
+    # Top Questions of the Week
+    st.subheader('Top Questions of the Week')
+    st.write('**The most popular questions asked on the Uniswap subreddit in the past week.**')
+    popular_questions_week['Question'] = popular_questions_week.apply(lambda x: f'<a href="{x.URL}" target="_blank">{x.Question}</a>', axis=1)
+    popular_questions_week = popular_questions_week[['Question', 'Number of Comments']]
+    st.write(popular_questions_week.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # Calculate Current Week's Engagement
-    current_week = data['Week'].max()
-    current_week_comments = data[data['Week'] == current_week]['NumComments'].sum()
+    # Top Questions of the Month
+    st.subheader('Top Questions of the Month')
+    st.write('**The most popular questions asked on the Uniswap subreddit in the past month.**')
+    popular_questions_month['Question'] = popular_questions_month.apply(lambda x: f'<a href="{x.URL}" target="_blank">{x.Question}</a>', axis=1)
+    popular_questions_month = popular_questions_month[['Question', 'Number of Comments']]
+    st.write(popular_questions_month.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # Determine Sentiment Color
-    sentiment_color = ''
-    if current_week_comments > baseline_comments_per_week * 1.1:
-        sentiment_color = 'green'
-        sentiment_description = "This indicates a significant increase in engagement (more than 10% above the baseline)."
-    elif baseline_comments_per_week * 0.9 <= current_week_comments <= baseline_comments_per_week * 1.1:
-        sentiment_color = 'yellow'
-        sentiment_description = "This indicates a stable engagement level (within 10% of the baseline)."
-    else:
-        sentiment_color = 'red'
-        sentiment_description = "This indicates a significant decrease in engagement (more than 10% below the baseline)."
-
-        st.markdown(f"""
-        <div style="background-color:{sentiment_color};padding:10px;border-radius:5px;" class="engagement-box">
-            <p style="color:white;text-align:center;">
-                Based on the average comments per week ({baseline_comments_per_week:.2f} comments), the engagement this week is {sentiment_color.capitalize()}.
-                {sentiment_description}
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    **Engagement color indicators:**
-    - **Green**: Increase in engagement (more than 10% above the baseline)
-    - **Yellow**: Stable engagement (within 10% of the baseline)
-    - **Red**: Decrease in engagement (more than 10% below the baseline)
-    """)
-
-    st.subheader('Most Popular Questions on the Subreddit (Past Month)')
-    st.write('**A spreadsheet showing the most popular questions asked on the Uniswap subreddit in the past month.**')
-    popular_questions['Question'] = popular_questions.apply(lambda x: f'<a href="{x.URL}" target="_blank">{x.Question}</a>', axis=1)
-    popular_questions = popular_questions[['Question', 'Number of Comments']]
-    st.write(popular_questions.to_html(escape=False, index=False), unsafe_allow_html=True)
+    st.subheader('Community Engagement Metrics')
 
     st.subheader('Post Activity (Number of Posts per Day in the Past Two Weeks)')
     st.write('**Based on the number of posts created per day in the Uniswap subreddit over the past two weeks.**')
@@ -197,17 +151,6 @@ def run_analysis():
         </div>
         """
         st.markdown(post_html, unsafe_allow_html=True)
-
-    # Provide option to fetch and post tweets (code remains commented out for future use)
-    # st.subheader('Fetch and Post Tweets')
-    # st.write('**Below you can fetch and post tweets from the specified Twitter accounts to the Uniswap subreddit.**')
-    # if st.button('Fetch and Post Tweets'):
-    #     usernames = ['Uniswap', 'UniswapFND', 'haydenzadams']
-    #     for username in usernames:
-    #         tweets = fetch_tweets_v2(username)
-    #         for tweet in tweets:
-    #             post_to_reddit('uniswap', tweet['text'], tweet['url'])
-    #     st.write('Tweets fetched and posted successfully!')
 
 if __name__ == '__main__':
     run_analysis()
