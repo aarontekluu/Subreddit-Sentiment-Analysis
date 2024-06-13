@@ -23,11 +23,19 @@ reddit = praw.Reddit(
     password=REDDIT_PASSWORD
 )
 
+# Function to handle Reddit API request errors
+def safe_reddit_request(func, *args, **kwargs):
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        st.error(f"Reddit API request failed: {e}")
+        return pd.DataFrame()
+
 # Fetch Data from Uniswap Subreddit
 def fetch_data(subreddit_name, limit=1000):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
-    for post in subreddit.top(limit=limit):
+    for post in safe_reddit_request(subreddit.top, limit=limit):
         author_name = post.author.name if post.author else 'Unknown'
         post_url = f"https://www.reddit.com{post.permalink}"
         posts.append([post.title, post.selftext, post.score, post.num_comments, author_name, post.created_utc, post_url])
@@ -39,7 +47,7 @@ def fetch_data(subreddit_name, limit=1000):
 def fetch_data_past_two_weeks(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
-    for post in subreddit.new(limit=None):
+    for post in safe_reddit_request(subreddit.new, limit=None):
         if (pd.Timestamp.now() - pd.to_datetime(post.created_utc, unit='s')).days <= 14:
             author_name = post.author.name if post.author else 'Unknown'
             post_url = f"https://www.reddit.com{post.permalink}"
@@ -52,7 +60,7 @@ def fetch_data_past_two_weeks(subreddit_name):
 def fetch_top_commented_posts(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
-    for post in subreddit.top(time_filter='week', limit=100):
+    for post in safe_reddit_request(subreddit.top, time_filter='week', limit=100):
         author_name = post.author.name if post.author else 'Unknown'
         post_url = f"https://www.reddit.com{post.permalink}"
         posts.append([post.title, post.selftext, post.score, post.num_comments, author_name, post.created_utc, post_url])
@@ -65,7 +73,7 @@ def fetch_top_commented_posts(subreddit_name):
 def fetch_popular_questions(subreddit_name, time_filter='week'):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
-    for post in subreddit.top(time_filter=time_filter, limit=1000):
+    for post in safe_reddit_request(subreddit.top, time_filter=time_filter, limit=1000):
         if '?' in post.title:
             author_name = post.author.name if post.author else 'Unknown'
             post_url = f"https://www.reddit.com{post.permalink}"
@@ -147,10 +155,21 @@ def run_analysis():
         <div class="reddit-post">
             <a class="reddit-post-title" href="{row['URL']}" target="_blank">{row['Title']}</a>
             <div class="reddit-post-meta">by {row['Author']} | {row['NumComments']} comments | Score: {row['Score']}</div>
-            <div class="reddit-post-body">{row['Text'][:300]}...</div>
+                        <div class="reddit-post-body">{row['Text'][:300]}...</div>
         </div>
         """
         st.markdown(post_html, unsafe_allow_html=True)
+
+    st.subheader('New Metric: Average Score per Post in the Past Two Weeks')
+    st.write('**This metric shows the average score (upvotes) of posts per day in the Uniswap subreddit over the past two weeks.**')
+    avg_score_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date)['Score'].mean()
+    plt.figure(figsize=(10, 4))
+    sns.barplot(x=avg_score_per_day.index, y=avg_score_per_day.values, color='#ff007a')
+    plt.title('Average Score per Post in the Past Two Weeks')
+    plt.xlabel('Date')
+    plt.ylabel('Average Score')
+    plt.xticks(rotation=45)
+    st.pyplot(plt)
 
 if __name__ == '__main__':
     run_analysis()
