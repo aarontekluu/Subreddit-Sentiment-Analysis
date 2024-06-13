@@ -96,6 +96,8 @@ def run_analysis():
 
     st.title("r/Uniswap Dashboard")
 
+    st.header('Metrics on the Most Asked Questions in r/Uniswap')
+    
     st.subheader('Top Questions of the Week')
     st.write('**The most popular questions asked on the Uniswap subreddit in the past week. A good metric to use to determine how to support the subreddit.**')
     popular_questions_week['Question'] = popular_questions_week.apply(lambda x: f'<a href="{x.URL}" target="_blank">{x.Question}</a>', axis=1)
@@ -108,7 +110,7 @@ def run_analysis():
     popular_questions_month = popular_questions_month[['Question', 'Number of Comments']]
     st.write(popular_questions_month.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    st.subheader('Community Engagement Metrics')
+    st.header('Other Community Engagement Metrics')
 
     st.subheader('Post Activity (Number of Posts per Day in the Past Two Weeks)')
     st.write('**The number of posts posted per day in the subreddit over the past two weeks.**')
@@ -132,7 +134,7 @@ def run_analysis():
     plt.xticks(rotation=45)
     st.pyplot(plt)
 
-    st.subheader('Top Active Users by Post Count in the Past Two Weeks')
+    st.subheader('Top Active Users on r/Uniswap in the Past Two Weeks')
     st.write('**The top active users based on the number of posts created by each user in the subreddit over the past two weeks.**')
     top_users = data_past_two_weeks['Author'].value_counts().head(10)
     plt.figure(figsize=(10, 4))
@@ -142,7 +144,7 @@ def run_analysis():
     plt.ylabel('User')
     st.pyplot(plt)
 
-    st.subheader('Average Score per Post in the Past Two Weeks')
+    st.subheader('Average Upvotes per Post in the Past Two Weeks')
     st.write('**This metric shows the average upvotes of posts per day in the Uniswap subreddit over the past two weeks**')
     avg_score_per_day = data_past_two_weeks.groupby(data_past_two_weeks['Date'].dt.date)['Score'].mean()
     plt.figure(figsize=(10, 4))
