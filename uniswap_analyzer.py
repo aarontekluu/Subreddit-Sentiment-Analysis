@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
 from wordcloud import WordCloud
+from time import sleep
 
 # Load secrets from Streamlit
 REDDIT_CLIENT_ID = st.secrets["REDDIT_CLIENT_ID"]
@@ -23,15 +24,18 @@ reddit = praw.Reddit(
     password=REDDIT_PASSWORD
 )
 
-# Function to handle Reddit API request errors
 def safe_reddit_request(func, *args, **kwargs):
-    try:
-        return func(*args, **kwargs)
-    except Exception as e:
-        st.error(f"Reddit API request failed: {e}")
-        return pd.DataFrame()
+    while True:
+        try:
+            return func(*args, **kwargs)
+        except prawcore.exceptions.RateLimitExceeded as e:
+            sleep_time = int(re.search(r'\d+', str(e)).group())
+            st.warning(f"Rate limit exceeded. Sleeping for {sleep_time} seconds.")
+            sleep(sleep_time)
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+            break
 
-# Fetch Data from Uniswap Subreddit
 def fetch_data(subreddit_name, limit=1000):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -43,7 +47,6 @@ def fetch_data(subreddit_name, limit=1000):
     df['Date'] = pd.to_datetime(df['CreatedUTC'], unit='s')
     return df
 
-# Fetch Data for the Past Two Weeks
 def fetch_data_past_two_weeks(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -56,7 +59,6 @@ def fetch_data_past_two_weeks(subreddit_name):
     df['Date'] = pd.to_datetime(df['CreatedUTC'], unit='s')
     return df
 
-# Fetch Top 3 Most Commented Posts of the Past Week
 def fetch_top_commented_posts(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
@@ -69,11 +71,10 @@ def fetch_top_commented_posts(subreddit_name):
     top_commented = df.nlargest(3, 'NumComments')
     return top_commented
 
-# Fetch Popular Questions
-def fetch_popular_questions(subreddit_name, time_filter='week'):
+def fetch_popular_questions(subreddit_name, time_filter='week', limit=100):
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
-    for post in safe_reddit_request(subreddit.top, time_filter=time_filter, limit=1000):
+    for post in safe_reddit_request(subreddit.top, time_filter=time_filter, limit=limit):
         if '?' in post.title:
             author_name = post.author.name if post.author else 'Unknown'
             post_url = f"https://www.reddit.com{post.permalink}"
@@ -81,32 +82,26 @@ def fetch_popular_questions(subreddit_name, time_filter='week'):
     df = pd.DataFrame(posts, columns=['Question', 'Number of Comments', 'URL'])
     return df.sort_values(by='Number of Comments', ascending=False).head(10)
 
-# Main Function to Run the Analysis
 def run_analysis():
-    st.title('Uniswap Subreddit Dashboard')
-
-    # Fetch data
     data = fetch_data('uniswap', limit=500)
     data_past_two_weeks = fetch_data_past_two_weeks('uniswap')
     top_commented_posts = fetch_top_commented_posts('uniswap')
     popular_questions_week = fetch_popular_questions('uniswap', time_filter='week')
     popular_questions_month = fetch_popular_questions('uniswap', time_filter='month')
 
-    # Export data to CSV
     data.to_csv('reddit_data.csv', index=False)
 
-    # Convert CreatedUTC to datetime
     data['Date'] = pd.to_datetime(data['CreatedUTC'], unit='s')
     data_past_two_weeks['Date'] = pd.to_datetime(data_past_two_weeks['CreatedUTC'], unit='s')
 
-    # Top Questions of the Week
+    st.title("Uniswap Subreddit Dashboard")
+
     st.subheader('Top Questions of the Week')
     st.write('**The most popular questions asked on the Uniswap subreddit in the past week.**')
     popular_questions_week['Question'] = popular_questions_week.apply(lambda x: f'<a href="{x.URL}" target="_blank">{x.Question}</a>', axis=1)
     popular_questions_week = popular_questions_week[['Question', 'Number of Comments']]
     st.write(popular_questions_week.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # Top Questions of the Month
     st.subheader('Top Questions of the Month')
     st.write('**The most popular questions asked on the Uniswap subreddit in the past month.**')
     popular_questions_month['Question'] = popular_questions_month.apply(lambda x: f'<a href="{x.URL}" target="_blank">{x.Question}</a>', axis=1)
@@ -146,19 +141,6 @@ def run_analysis():
     plt.xlabel('Number of Posts')
     plt.ylabel('User')
     st.pyplot(plt)
-
-    # Top 3 Most Commented Posts of the Past Week
-    st.subheader('Top 3 Most Commented Posts of the Past Week')
-    st.write('**Comments are often a better proxy for popularity than upvotes because they indicate active engagement and discussions within the community. Here are the top 3 most commented posts in the Uniswap subreddit over the past week.**')
-    for index, row in top_commented_posts.iterrows():
-        post_html = f"""
-        <div class="reddit-post">
-            <a class="reddit-post-title" href="{row['URL']}" target="_blank">{row['Title']}</a>
-            <div class="reddit-post-meta">by {row['Author']} | {row['NumComments']} comments | Score: {row['Score']}</div>
-                        <div class="reddit-post-body">{row['Text'][:300]}...</div>
-        </div>
-        """
-        st.markdown(post_html, unsafe_allow_html=True)
 
     st.subheader('New Metric: Average Score per Post in the Past Two Weeks')
     st.write('**This metric shows the average score (upvotes) of posts per day in the Uniswap subreddit over the past two weeks.**')
